@@ -6,8 +6,19 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		C91608F32F2013610070D66E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C91608AE2F200BE70070D66E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C91608B52F200BE70070D66E;
+			remoteInfo = SoftDraft;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		C91608B62F200BE80070D66E /* SoftDraft.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SoftDraft.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C91608EF2F2013610070D66E /* SoftDraftTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SoftDraftTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,10 +27,22 @@
 			path = SoftDraft;
 			sourceTree = "<group>";
 		};
+		C91608F02F2013610070D66E /* SoftDraftTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = SoftDraftTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		C91608B32F200BE70070D66E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C91608EC2F2013610070D66E /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -33,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				C91608B82F200BE80070D66E /* SoftDraft */,
+				C91608F02F2013610070D66E /* SoftDraftTests */,
 				C91608B72F200BE80070D66E /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				C91608B62F200BE80070D66E /* SoftDraft.app */,
+				C91608EF2F2013610070D66E /* SoftDraftTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -70,6 +95,29 @@
 			productReference = C91608B62F200BE80070D66E /* SoftDraft.app */;
 			productType = "com.apple.product-type.application";
 		};
+		C91608EE2F2013610070D66E /* SoftDraftTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C91608F52F2013610070D66E /* Build configuration list for PBXNativeTarget "SoftDraftTests" */;
+			buildPhases = (
+				C91608EB2F2013610070D66E /* Sources */,
+				C91608EC2F2013610070D66E /* Frameworks */,
+				C91608ED2F2013610070D66E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C91608F42F2013610070D66E /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				C91608F02F2013610070D66E /* SoftDraftTests */,
+			);
+			name = SoftDraftTests;
+			packageProductDependencies = (
+			);
+			productName = SoftDraftTests;
+			productReference = C91608EF2F2013610070D66E /* SoftDraftTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -82,6 +130,11 @@
 				TargetAttributes = {
 					C91608B52F200BE70070D66E = {
 						CreatedOnToolsVersion = 26.0.1;
+					};
+					C91608EE2F2013610070D66E = {
+						CreatedOnToolsVersion = 26.0.1;
+						LastSwiftMigration = 2600;
+						TestTargetID = C91608B52F200BE70070D66E;
 					};
 				};
 			};
@@ -100,12 +153,20 @@
 			projectRoot = "";
 			targets = (
 				C91608B52F200BE70070D66E /* SoftDraft */,
+				C91608EE2F2013610070D66E /* SoftDraftTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		C91608B42F200BE70070D66E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C91608ED2F2013610070D66E /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -122,7 +183,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C91608EB2F2013610070D66E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C91608F42F2013610070D66E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C91608B52F200BE70070D66E /* SoftDraft */;
+			targetProxy = C91608F32F2013610070D66E /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		C91608BF2F200BE90070D66E /* Debug */ = {
@@ -251,9 +327,8 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -281,9 +356,8 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -300,6 +374,47 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		C91608F62F2013610070D66E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ma.SoftDraftTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SoftDraft.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SoftDraft";
+			};
+			name = Debug;
+		};
+		C91608F72F2013610070D66E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ma.SoftDraftTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SoftDraft.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SoftDraft";
 			};
 			name = Release;
 		};
@@ -320,6 +435,15 @@
 			buildConfigurations = (
 				C91608C22F200BE90070D66E /* Debug */,
 				C91608C32F200BE90070D66E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C91608F52F2013610070D66E /* Build configuration list for PBXNativeTarget "SoftDraftTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C91608F62F2013610070D66E /* Debug */,
+				C91608F72F2013610070D66E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
