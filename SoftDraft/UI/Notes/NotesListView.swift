@@ -11,19 +11,25 @@ struct NotesListView: View {
 
     let libraryURL: URL
     let collection: String
+    @Binding var selectedNoteID: String?
 
     @StateObject private var model = NotesListModel()
-    @State private var selection: String?
 
     var body: some View {
-        List(selection: $selection) {
+        List(selection: $selectedNoteID) {
             ForEach(model.notes, id: \.id) { note in
                 NoteRow(note: note)
                     .tag(note.id)
             }
         }
-        .listStyle(.inset)
         .navigationTitle(collection)
+        .task {
+            // Initial load
+            await model.load(
+                libraryURL: libraryURL,
+                collection: collection
+            )
+        }
         .onChange(of: collection) { _, newCollection in
             Task {
                 await model.load(

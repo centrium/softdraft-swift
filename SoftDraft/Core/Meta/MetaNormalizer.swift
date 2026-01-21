@@ -10,10 +10,10 @@ import Foundation
 enum MetaNormalizer {
 
     static func afterCollectionRename(
-        meta: Meta,
+        meta: LibraryMeta,
         oldName: String,
         newName: String
-    ) -> Meta {
+    ) -> LibraryMeta {
 
         var next = meta
         var updated: [String: Bool] = [:]
@@ -32,9 +32,9 @@ enum MetaNormalizer {
     }
 
     static func afterCollectionDelete(
-        meta: Meta,
+        meta: LibraryMeta,
         collection: String
-    ) -> Meta {
+    ) -> LibraryMeta {
 
         var next = meta
         next.pinned = meta.pinned.filter {

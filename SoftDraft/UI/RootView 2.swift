@@ -14,11 +14,20 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if let libraryURL = libraryManager.libraryURL {
-                LibraryLoadedView(libraryURL: libraryURL)
-            } else {
+            switch libraryManager.startupState {
+
+            case .resolving:
+                StartupPlaceholderView()
+
+            case .noLibrary:
                 EmptyLibraryView()
+
+            case .loaded(let url):
+                LibraryLoadedView(libraryURL: url)
             }
+        }
+        .task {
+            await libraryManager.resolveInitialLibrary()
         }
     }
 }

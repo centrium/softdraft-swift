@@ -27,14 +27,16 @@ extension NoteStore {
             throw CoreError.noteNotFound
         }
 
+        // 1️⃣ Authoritative operation
         try FileManager.default.removeItem(at: url)
 
-        // ---- clean up metadata (pins etc) ----
-        var meta = MetaStore.load(libraryURL: libraryURL)
+        // 2️⃣ Best-effort meta cleanup (async, non-blocking)
+        Task {
+            var meta = (try? LibraryMetaStore.load(libraryURL)) ?? LibraryMeta()
 
-        if meta.pinned[noteID] == true {
-            meta.pinned.removeValue(forKey: noteID)
-            try MetaStore.save(libraryURL: libraryURL, meta: meta)
+            if meta.pinned.removeValue(forKey: noteID) != nil {
+                await LibraryMetaStore.save(meta, to: libraryURL)
+            }
         }
 
         return noteID

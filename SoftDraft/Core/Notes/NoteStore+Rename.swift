@@ -46,6 +46,7 @@ extension NoteStore {
 
         let newURL = collectionDir.appendingPathComponent(newFilename)
 
+        // 1️⃣ Authoritative operation
         try FileManager.default.moveItem(
             at: oldURL,
             to: newURL
@@ -53,13 +54,14 @@ extension NoteStore {
 
         let newID = "\(collection)/\(newFilename)"
 
-        // ---- migrate metadata (pins) ----
-        var meta = MetaStore.load(libraryURL: libraryURL)
+        // 2️⃣ Best-effort meta migration (async, non-blocking)
+        Task {
+            var meta = (try? LibraryMetaStore.load(libraryURL)) ?? LibraryMeta()
 
-        if meta.pinned[oldID] == true {
-            meta.pinned.removeValue(forKey: oldID)
-            meta.pinned[newID] = true
-            try MetaStore.save(libraryURL: libraryURL, meta: meta)
+            if meta.pinned.removeValue(forKey: oldID) != nil {
+                meta.pinned[newID] = true
+                await LibraryMetaStore.save(meta, to: libraryURL)
+            }
         }
 
         return newID

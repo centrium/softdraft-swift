@@ -27,36 +27,39 @@ extension NoteStore {
             throw CoreError.noteNotFound
         }
 
-        // Load meta
-        var meta = MetaStore.load(libraryURL: libraryURL)
-
+        // 1️⃣ Determine new pin state (best-effort read)
+        let meta = (try? LibraryMetaStore.load(libraryURL)) ?? LibraryMeta()
         let isPinned = meta.pinned[noteID] == true
+        let nextPinned = !isPinned
 
-        if isPinned {
-            meta.pinned.removeValue(forKey: noteID)
-        } else {
-            meta.pinned[noteID] = true
+        // 2️⃣ Persist pin toggle asynchronously (non-blocking)
+        Task {
+            var nextMeta = meta
+
+            if nextPinned {
+                nextMeta.pinned[noteID] = true
+            } else {
+                nextMeta.pinned.removeValue(forKey: noteID)
+            }
+
+            await LibraryMetaStore.save(nextMeta, to: libraryURL)
         }
 
-        try MetaStore.save(libraryURL: libraryURL, meta: meta)
-
-        // Rebuild summary
+        // 3️⃣ Rebuild summary synchronously (authoritative for UI)
         let content = try String(contentsOf: url, encoding: .utf8)
 
         let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
         let modified = attrs[.modificationDate] as? Date ?? Date()
 
         let title = MarkdownTitle.extractH1(from: content)
-            ?? (noteID as NSString).lastPathComponent.replacingOccurrences(
-                of: ".md",
-                with: ""
-            )
+            ?? (noteID as NSString)
+                .lastPathComponent
+                .replacingOccurrences(of: ".md", with: "")
 
         let relativeDir = (noteID as NSString).deletingLastPathComponent
-        let name = (noteID as NSString).lastPathComponent.replacingOccurrences(
-            of: ".md",
-            with: ""
-        )
+        let name = (noteID as NSString)
+            .lastPathComponent
+            .replacingOccurrences(of: ".md", with: "")
 
         return NoteSummary(
             id: noteID,
@@ -64,7 +67,7 @@ extension NoteStore {
             title: title,
             relativeDir: relativeDir,
             modifiedAt: modified,
-            pinned: !isPinned
+            pinned: nextPinned
         )
     }
 }

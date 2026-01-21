@@ -30,16 +30,19 @@ extension CollectionStore {
             throw CoreError.collectionNotFound
         }
 
+        // 1️⃣ Perform the authoritative operation
         try FileManager.default.moveItem(at: oldURL, to: newURL)
 
-        let meta = MetaStore.load(libraryURL: libraryURL)
-        let next = MetaNormalizer.afterCollectionRename(
-            meta: meta,
-            oldName: oldName,
-            newName: cleanNew
-        )
-
-        try MetaStore.save(libraryURL: libraryURL, meta: next)
+        // 2️⃣ Update meta best-effort (non-blocking)
+        Task {
+            let meta = (try? LibraryMetaStore.load(libraryURL)) ?? LibraryMeta()
+            let next = MetaNormalizer.afterCollectionRename(
+                meta: meta,
+                oldName: oldName,
+                newName: cleanNew
+            )
+            await LibraryMetaStore.save(next, to: libraryURL)
+        }
 
         return cleanNew
     }

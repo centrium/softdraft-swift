@@ -10,12 +10,12 @@ import SwiftUI
 struct CollectionsSidebar: View {
 
     let libraryURL: URL
-    @ObservedObject var selection: CollectionSelection
+    @Binding var selectedCollection: String
 
     @State private var collections: [String] = []
 
     var body: some View {
-        List(selection: $selection.activeCollection) {
+        List(selection: $selectedCollection) {
             ForEach(collections, id: \.self) { name in
                 Text(name)
                     .tag(name)
@@ -24,19 +24,18 @@ struct CollectionsSidebar: View {
         .listStyle(.sidebar)
         .navigationTitle("Collections")
         .task(id: libraryURL.path) {
-            await loadCollections()
+            loadCollections()
         }
     }
 
-    @MainActor
-    private func loadCollections() async {
+    private func loadCollections() {
         do {
             let loaded = try CollectionStore.list(libraryURL: libraryURL)
             collections = loaded
 
-            // ✅ ONLY reconcile on library load
-            if !loaded.contains(selection.activeCollection) {
-                selection.activeCollection = loaded.first ?? "Inbox"
+            // ✅ Initial selection only
+            if !loaded.contains(selectedCollection) {
+                selectedCollection = loaded.first ?? "Inbox"
             }
         } catch {
             collections = []

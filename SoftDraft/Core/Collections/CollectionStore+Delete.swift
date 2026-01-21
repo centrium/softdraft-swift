@@ -24,14 +24,17 @@ extension CollectionStore {
             throw CoreError.collectionNotFound
         }
 
+        // 1️⃣ Authoritative operation
         try FileManager.default.removeItem(at: url)
 
-        let meta = MetaStore.load(libraryURL: libraryURL)
-        let next = MetaNormalizer.afterCollectionDelete(
-            meta: meta,
-            collection: name
-        )
-
-        try MetaStore.save(libraryURL: libraryURL, meta: next)
+        // 2️⃣ Best-effort meta cleanup (async, non-blocking)
+        Task {
+            let meta = (try? LibraryMetaStore.load(libraryURL)) ?? LibraryMeta()
+            let next = MetaNormalizer.afterCollectionDelete(
+                meta: meta,
+                collection: name
+            )
+            await LibraryMetaStore.save(next, to: libraryURL)
+        }
     }
 }
