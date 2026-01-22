@@ -8,6 +8,7 @@
 import XCTest
 @testable import SoftDraft
 
+@MainActor
 final class CollectionStoreTests: XCTestCase {
 
     func testCreateAndListCollections() throws {
@@ -24,7 +25,7 @@ final class CollectionStoreTests: XCTestCase {
         XCTAssertTrue(collections.contains("Work"))
     }
 
-    func testRenameMigratesPins() throws {
+    func testRenameMigratesPins() async throws {
         let library = try TestLibrary.makeTempLibrary()
 
         let created = try NoteStore.create(
@@ -33,9 +34,9 @@ final class CollectionStoreTests: XCTestCase {
             title: "Pinned"
         )
 
-        var meta = MetaStore.load(libraryURL: library)
+        var meta = try LibraryMetaStore.load(library)
         meta.pinned[created.summary.id] = true
-        try MetaStore.save(libraryURL: library, meta: meta)
+        await LibraryMetaStore.save(meta, to: library)
 
         _ = try CollectionStore.rename(
             libraryURL: library,
@@ -43,7 +44,10 @@ final class CollectionStoreTests: XCTestCase {
             newName: "Archive"
         )
 
-        let updated = MetaStore.load(libraryURL: library)
+        let updated = try await waitForMetaUpdate(in: library) { meta in
+            meta.pinned[created.summary.id] == nil &&
+            meta.pinned["Archive/\(created.summary.name).md"] == true
+        }
 
         XCTAssertNil(updated.pinned[created.summary.id])
         XCTAssertEqual(
@@ -52,7 +56,7 @@ final class CollectionStoreTests: XCTestCase {
         )
     }
 
-    func testDeleteCollectionRemovesPins() throws {
+    func testDeleteCollectionRemovesPins() async throws {
         let library = try TestLibrary.makeTempLibrary()
 
         let created = try NoteStore.create(
@@ -61,16 +65,18 @@ final class CollectionStoreTests: XCTestCase {
             title: "Delete Collection"
         )
 
-        var meta = MetaStore.load(libraryURL: library)
+        var meta = try LibraryMetaStore.load(library)
         meta.pinned[created.summary.id] = true
-        try MetaStore.save(libraryURL: library, meta: meta)
+        await LibraryMetaStore.save(meta, to: library)
 
         try CollectionStore.delete(
             libraryURL: library,
             name: "Inbox"
         )
 
-        let updated = MetaStore.load(libraryURL: library)
+        let updated = try await waitForMetaUpdate(in: library) { meta in
+            meta.pinned.isEmpty
+        }
 
         XCTAssertTrue(updated.pinned.isEmpty)
     }

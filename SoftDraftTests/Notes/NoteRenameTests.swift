@@ -8,6 +8,7 @@
 import XCTest
 @testable import SoftDraft
 
+@MainActor
 final class NoteRenameTests: XCTestCase {
 
     func testRenameNoteChangesFilename() throws {
@@ -46,7 +47,7 @@ final class NoteRenameTests: XCTestCase {
         XCTAssertTrue(newID.hasPrefix("Work/"))
     }
 
-    func testRenameMigratesPin() throws {
+    func testRenameMigratesPin() async throws {
         let library = try TestLibrary.makeTempLibrary()
 
         let created = try NoteStore.create(
@@ -55,9 +56,9 @@ final class NoteRenameTests: XCTestCase {
             title: "Pinned Note"
         )
 
-        var meta = MetaStore.load(libraryURL: library)
+        var meta = try LibraryMetaStore.load(library)
         meta.pinned[created.summary.id] = true
-        try MetaStore.save(libraryURL: library, meta: meta)
+        await LibraryMetaStore.save(meta, to: library)
 
         let newID = try NoteStore.rename(
             libraryURL: library,
@@ -65,10 +66,12 @@ final class NoteRenameTests: XCTestCase {
             newTitle: "Pinned Renamed"
         )
 
-        let updatedMeta = MetaStore.load(libraryURL: library)
+        let updatedMeta = try await waitForMetaUpdate(in: library) { meta in
+            meta.pinned[created.summary.id] == nil &&
+            meta.pinned[newID] == true
+        }
 
         XCTAssertNil(updatedMeta.pinned[created.summary.id])
         XCTAssertEqual(updatedMeta.pinned[newID], true)
     }
 }
-

@@ -8,9 +8,10 @@
 import XCTest
 @testable import SoftDraft
 
+@MainActor
 final class NoteTogglePinTests: XCTestCase {
 
-    func testTogglePinAddsPin() throws {
+    func testTogglePinAddsPin() async throws {
         let library = try TestLibrary.makeTempLibrary()
 
         let created = try NoteStore.create(
@@ -24,10 +25,16 @@ final class NoteTogglePinTests: XCTestCase {
             noteID: created.summary.id
         )
 
-        XCTAssertTrue(updated.pinned)
+        let isPinnedAfterToggle = updated.pinned
+        XCTAssertTrue(isPinnedAfterToggle)
+
+        _ = try await waitForMetaUpdate(in: library) { meta in
+            meta.pinned[created.summary.id] == true
+        }
     }
 
-    func testTogglePinRemovesPin() throws {
+    @MainActor
+    func testTogglePinRemovesPin() async throws {
         let library = try TestLibrary.makeTempLibrary()
 
         let created = try NoteStore.create(
@@ -36,20 +43,32 @@ final class NoteTogglePinTests: XCTestCase {
             title: "Unpin Me"
         )
 
+        // First toggle → pin
         _ = try NoteStore.togglePin(
             libraryURL: library,
             noteID: created.summary.id
         )
 
+        // Wait for meta to reflect pin
+        _ = try await waitForMetaUpdate(in: library) { meta in
+            meta.pinned[created.summary.id] == true
+        }
+
+        // Second toggle → unpin
         let updated = try NoteStore.togglePin(
             libraryURL: library,
             noteID: created.summary.id
         )
 
         XCTAssertFalse(updated.pinned)
+
+        // Wait for meta to reflect unpin
+        _ = try await waitForMetaUpdate(in: library) { meta in
+            meta.pinned[created.summary.id] == nil
+        }
     }
 
-    func testTogglePinUsesH1AsTitle() throws {
+    func testTogglePinUsesH1AsTitle() async throws {
         let library = try TestLibrary.makeTempLibrary()
 
         let created = try NoteStore.create(
@@ -73,6 +92,11 @@ final class NoteTogglePinTests: XCTestCase {
             noteID: created.summary.id
         )
 
-        XCTAssertEqual(updated.title, "Custom Title")
+        let updatedTitle = updated.title
+        XCTAssertEqual(updatedTitle, "Custom Title")
+
+        _ = try await waitForMetaUpdate(in: library) { meta in
+            meta.pinned[created.summary.id] == true
+        }
     }
 }

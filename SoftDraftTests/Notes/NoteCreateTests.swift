@@ -8,6 +8,7 @@
 import XCTest
 @testable import SoftDraft
 
+@MainActor
 final class NoteCreateTests: XCTestCase {
 
     func testCreateNoteDefaults() throws {

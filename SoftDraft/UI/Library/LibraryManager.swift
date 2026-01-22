@@ -10,7 +10,6 @@
 import Foundation
 import Combine
 
-@MainActor
 final class LibraryManager: ObservableObject {
 
     enum StartupState {

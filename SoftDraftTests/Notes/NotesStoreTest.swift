@@ -10,6 +10,7 @@
 import XCTest
 @testable import SoftDraft
 
+@MainActor
 final class NoteStoreTests: XCTestCase {
 
     func testLoadAndSaveNote() throws {

@@ -8,6 +8,7 @@
 import XCTest
 @testable import SoftDraft
 
+@MainActor
 final class NoteDeleteTests: XCTestCase {
 
     func testDeleteRemovesFile() throws {
@@ -35,7 +36,7 @@ final class NoteDeleteTests: XCTestCase {
         )
     }
 
-    func testDeleteRemovesPin() throws {
+    func testDeleteRemovesPin() async throws {
         let library = try TestLibrary.makeTempLibrary()
 
         let created = try NoteStore.create(
@@ -44,16 +45,18 @@ final class NoteDeleteTests: XCTestCase {
             title: "Pinned Delete"
         )
 
-        var meta = MetaStore.load(libraryURL: library)
+        var meta = try LibraryMetaStore.load(library)
         meta.pinned[created.summary.id] = true
-        try MetaStore.save(libraryURL: library, meta: meta)
+        await LibraryMetaStore.save(meta, to: library)
 
         _ = try NoteStore.delete(
             libraryURL: library,
             noteID: created.summary.id
         )
 
-        let updated = MetaStore.load(libraryURL: library)
+        let updated = try await waitForMetaUpdate(in: library) { meta in
+            meta.pinned[created.summary.id] == nil
+        }
 
         XCTAssertNil(updated.pinned[created.summary.id])
     }

@@ -7,8 +7,6 @@
 
 import Foundation
 
-import Foundation
-
 enum LibraryMetaStore {
 
     private static let fileName = ".softdraft-meta.json"

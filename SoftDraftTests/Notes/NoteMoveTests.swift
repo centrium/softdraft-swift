@@ -8,6 +8,7 @@
 import XCTest
 @testable import SoftDraft
 
+@MainActor
 final class NoteMoveTests: XCTestCase {
 
     func testMoveNoteToAnotherCollection() throws {
@@ -78,7 +79,7 @@ final class NoteMoveTests: XCTestCase {
         XCTAssertTrue(newID.contains("duplicate-1"))
     }
 
-    func testMoveMigratesPin() throws {
+    func testMoveMigratesPin() async throws {
         let library = try TestLibrary.makeTempLibrary()
 
         let created = try NoteStore.create(
@@ -87,9 +88,9 @@ final class NoteMoveTests: XCTestCase {
             title: "Pinned Move"
         )
 
-        var meta = MetaStore.load(libraryURL: library)
+        var meta = try LibraryMetaStore.load(library)
         meta.pinned[created.summary.id] = true
-        try MetaStore.save(libraryURL: library, meta: meta)
+        await LibraryMetaStore.save(meta, to: library)
 
         let newID = try NoteStore.move(
             libraryURL: library,
@@ -97,7 +98,10 @@ final class NoteMoveTests: XCTestCase {
             destCollection: "Archive"
         )
 
-        let updated = MetaStore.load(libraryURL: library)
+        let updated = try await waitForMetaUpdate(in: library) { meta in
+            meta.pinned[created.summary.id] == nil &&
+            meta.pinned[newID] == true
+        }
 
         XCTAssertNil(updated.pinned[created.summary.id])
         XCTAssertEqual(updated.pinned[newID], true)
