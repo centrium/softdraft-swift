@@ -14,6 +14,8 @@ struct NotesListView: View {
     @Binding var selectedNoteID: String?
 
     @StateObject private var model = NotesListModel()
+    
+    var onNotesLoaded: (([NoteSummary]) -> Void)?
 
     var body: some View {
         List(selection: $selectedNoteID) {
@@ -29,6 +31,7 @@ struct NotesListView: View {
                 libraryURL: libraryURL,
                 collection: collection
             )
+            onNotesLoaded?(model.notes)
         }
         .onChange(of: collection) { _, newCollection in
             Task {
@@ -36,6 +39,7 @@ struct NotesListView: View {
                     libraryURL: libraryURL,
                     collection: newCollection
                 )
+                onNotesLoaded?(model.notes)
             }
         }
     }
