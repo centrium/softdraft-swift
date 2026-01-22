@@ -14,6 +14,8 @@ final class CommandRegistry: ObservableObject {
     private var commands: [CommandID: AppCommand] = [:]
     let context: CommandContext
     private var cancellables: Set<AnyCancellable> = []
+    // Ticking value that forces SwiftUI to refresh command availability.
+    @Published private var contextChangeTick: UInt = 0
 
     init(context: CommandContext) {
         self.context = context
@@ -45,16 +47,23 @@ final class CommandRegistry: ObservableObject {
     }
 
     private func observeContext() {
-        context.selection.objectWillChange
+        context.selection.$selectedNoteID
             .sink { [weak self] _ in
-                self?.objectWillChange.send()
+                self?.scheduleContextChange()
             }
             .store(in: &cancellables)
 
-        context.libraryManager.objectWillChange
+        context.libraryManager.$activeLibraryURL
             .sink { [weak self] _ in
-                self?.objectWillChange.send()
+                self?.scheduleContextChange()
             }
             .store(in: &cancellables)
+    }
+
+    private func scheduleContextChange() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.contextChangeTick &+= 1
+        }
     }
 }

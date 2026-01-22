@@ -69,7 +69,9 @@ struct LibraryLoadedView: View {
             guard oldValue != newValue else { return }
 
             // Reset note selection deterministically
-            selection.selectedNoteID = nil
+            Task { @MainActor in
+                selection.selectedNoteID = nil
+            }
 
             Task {
                 await LibraryMetaStore.updateLastActiveCollection(

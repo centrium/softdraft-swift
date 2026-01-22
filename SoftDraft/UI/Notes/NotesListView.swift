@@ -14,11 +14,12 @@ struct NotesListView: View {
 
     @EnvironmentObject private var selection: SelectionModel
     @EnvironmentObject private var model: NotesListModel
+    @State private var listSelection: String?
 
     var onNotesLoaded: (([NoteSummary]) -> Void)?
 
     var body: some View {
-        List(selection: $selection.selectedNoteID) {
+        List(selection: listSelectionBinding) {
             ForEach(model.notes, id: \.id) { note in
                 NoteRow(note: note)
                     .tag(note.id)
@@ -41,5 +42,33 @@ struct NotesListView: View {
                 onNotesLoaded?(model.notes)
             }
         }
+        .onAppear {
+            syncSelectionFromModel()
+        }
+        .onChange(of: selection.selectedNoteID) { _, newValue in
+            guard listSelection != newValue else { return }
+            listSelection = newValue
+        }
+        .onChange(of: listSelection) { _, newValue in
+            guard selection.selectedNoteID != newValue else { return }
+            Task { @MainActor in
+                selection.selectedNoteID = newValue
+            }
+        }
+    }
+
+    private var listSelectionBinding: Binding<String?> {
+        Binding(
+            get: { listSelection },
+            set: { newValue in
+                guard listSelection != newValue else { return }
+                listSelection = newValue
+            }
+        )
+    }
+
+    private func syncSelectionFromModel() {
+        guard listSelection != selection.selectedNoteID else { return }
+        listSelection = selection.selectedNoteID
     }
 }
