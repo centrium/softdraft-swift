@@ -11,14 +11,14 @@ struct NotesListView: View {
 
     let libraryURL: URL
     let collection: String
-    @Binding var selectedNoteID: String?
 
-    @StateObject private var model = NotesListModel()
-    
+    @EnvironmentObject private var selection: SelectionModel
+    @EnvironmentObject private var model: NotesListModel
+
     var onNotesLoaded: (([NoteSummary]) -> Void)?
 
     var body: some View {
-        List(selection: $selectedNoteID) {
+        List(selection: $selection.selectedNoteID) {
             ForEach(model.notes, id: \.id) { note in
                 NoteRow(note: note)
                     .tag(note.id)
@@ -26,7 +26,6 @@ struct NotesListView: View {
         }
         .navigationTitle(collection)
         .task {
-            // Initial load
             await model.load(
                 libraryURL: libraryURL,
                 collection: collection

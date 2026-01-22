@@ -18,6 +18,7 @@ final class LibraryManager: ObservableObject {
         case loaded(URL)
     }
 
+    @Published private(set) var activeLibraryURL: URL?
     @Published private(set) var startupState: StartupState = .resolving
 
     // MARK: - Startup
@@ -26,22 +27,26 @@ final class LibraryManager: ObservableObject {
         let config = await AppConfigStore.load()
 
         guard let url = config.lastLibraryURL else {
+            activeLibraryURL = nil
             startupState = .noLibrary
             return
         }
 
         // Validate the library still exists and is usable
         guard LibraryValidator.isLibraryRoot(url) else {
+            activeLibraryURL = nil
             startupState = .noLibrary
             return
         }
 
+        activeLibraryURL = url
         startupState = .loaded(url)
     }
 
     // MARK: - Library lifecycle
 
     func setActiveLibrary(_ url: URL) async {
+        activeLibraryURL = url
         startupState = .loaded(url)
 
         var config = await AppConfigStore.load()
@@ -50,6 +55,7 @@ final class LibraryManager: ObservableObject {
     }
 
     func clearLibrary() async {
+        activeLibraryURL = nil
         startupState = .noLibrary
 
         var config = await AppConfigStore.load()

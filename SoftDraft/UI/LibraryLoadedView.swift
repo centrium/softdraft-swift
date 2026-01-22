@@ -1,11 +1,18 @@
+//
+//  LibraryLoadedView.swift
+//  SoftDraft
+//
+//  Created by Matt Adams on 20/01/2026.
+//
+
 import SwiftUI
 
 struct LibraryLoadedView: View {
 
     let libraryURL: URL
+    @EnvironmentObject private var selection: SelectionModel
 
     @State private var selectedCollection: String
-    @State private var selectedNoteID: String?
 
     init(libraryURL: URL) {
         self.libraryURL = libraryURL
@@ -42,10 +49,11 @@ struct LibraryLoadedView: View {
             NotesListView(
                 libraryURL: libraryURL,
                 collection: selectedCollection,
-                selectedNoteID: $selectedNoteID,
                 onNotesLoaded: { notes in
-                    guard selectedNoteID == nil else { return }
-                    selectedNoteID = notes.first?.id
+                    guard selection.selectedNoteID == nil else { return }
+                    Task { @MainActor in
+                        selection.selectedNoteID = notes.first?.id
+                    }
                 }
             )
 
@@ -54,14 +62,14 @@ struct LibraryLoadedView: View {
             // ───────── Read-only note viewer ─────────
             NoteDetailView(
                 libraryURL: libraryURL,
-                noteID: selectedNoteID
+                noteID: selection.selectedNoteID
             )
         }
         .onChange(of: selectedCollection) { oldValue, newValue in
             guard oldValue != newValue else { return }
 
-            // Reset selection so first note is chosen deterministically
-            selectedNoteID = nil
+            // Reset note selection deterministically
+            selection.selectedNoteID = nil
 
             Task {
                 await LibraryMetaStore.updateLastActiveCollection(
@@ -71,4 +79,4 @@ struct LibraryLoadedView: View {
             }
         }
     }
-    }
+}

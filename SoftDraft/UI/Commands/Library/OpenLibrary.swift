@@ -2,25 +2,36 @@
 //  Commands.swift
 //  SoftDraft
 //
-//  Created by Matt Adams on 20/01/2026.
-//
 
 import SwiftUI
 
 struct LibraryCommands: Commands {
 
     @ObservedObject private var libraryManager: LibraryManager
+    @EnvironmentObject private var commandRegistry: CommandRegistry
 
     init(libraryManager: LibraryManager) {
         self.libraryManager = libraryManager
     }
 
     var body: some Commands {
+
+        // ───────── File / Library ─────────
         CommandGroup(replacing: .newItem) {
             Button("Open Library…") {
                 openLibrary()
             }
             .keyboardShortcut("o", modifiers: [.command])
+        }
+
+        // ───────── Note commands ─────────
+        CommandMenu("Note") {
+
+            Button("Toggle Pin") {
+                commandRegistry.run("note.togglePin")
+            }
+            .keyboardShortcut("p", modifiers: [.command])
+            .disabled(!commandRegistry.canExecute("note.togglePin"))
         }
     }
 
@@ -36,4 +47,3 @@ struct LibraryCommands: Commands {
         }
     }
 }
-
