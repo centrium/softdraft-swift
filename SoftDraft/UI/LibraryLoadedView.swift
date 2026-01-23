@@ -11,6 +11,7 @@ struct LibraryLoadedView: View {
 
     let libraryURL: URL
     @EnvironmentObject private var selection: SelectionModel
+    @EnvironmentObject private var libraryManager: LibraryManager
 
     @State private var selectedCollection: String
 

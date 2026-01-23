@@ -32,6 +32,11 @@ struct LibraryCommands: Commands {
             }
             .keyboardShortcut("p", modifiers: [.command])
             .disabled(!commandRegistry.canExecute("note.togglePin"))
+            Button("Move Note") {
+                commandRegistry.run("note.move")
+            }
+            .keyboardShortcut("m", modifiers: [.command])
+            .disabled(!commandRegistry.canExecute("note.move"))
         }
     }
 

@@ -13,6 +13,7 @@ struct CollectionsSidebar: View {
     @Binding var selectedCollection: String
 
     @State private var collections: [String] = []
+    @EnvironmentObject private var libraryManager: LibraryManager
 
     var body: some View {
         List(selection: $selectedCollection) {
@@ -29,16 +30,13 @@ struct CollectionsSidebar: View {
     }
 
     private func loadCollections() {
-        do {
-            let loaded = try CollectionStore.list(libraryURL: libraryURL)
-            collections = loaded
+        let loaded = libraryManager.allCollections()
 
-            // ✅ Initial selection only
-            if !loaded.contains(selectedCollection) {
-                selectedCollection = loaded.first ?? "Inbox"
-            }
-        } catch {
-            collections = []
+        collections = loaded
+
+        // ✅ Initial selection only
+        if !loaded.contains(selectedCollection) {
+            selectedCollection = loaded.first ?? "Inbox"
         }
     }
 }

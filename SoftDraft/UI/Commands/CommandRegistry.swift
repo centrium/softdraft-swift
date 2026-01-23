@@ -43,6 +43,9 @@ final class CommandRegistry: ObservableObject {
 
     private func registerDefaults() {
         register(togglePinCommand)
+        register(
+            makeMoveNoteCommand(destinationCollection: "Inbox")
+        )
         // others come later
     }
 

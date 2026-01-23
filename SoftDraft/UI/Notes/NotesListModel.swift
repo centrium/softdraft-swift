@@ -28,11 +28,11 @@ final class NotesListModel: ObservableObject, NotesReloader {
         // Persist context
         self.libraryURL = libraryURL
         self.currentCollection = collection
-
+        
         // Only skip if truly redundant
-        guard previousCollection != collection || notes.isEmpty else {
+       /* guard previousCollection != collection || notes.isEmpty else {
             return
-        }
+        }*/
 
         isLoading = true
 
@@ -59,6 +59,9 @@ final class NotesListModel: ObservableObject, NotesReloader {
             let libraryURL,
             let currentCollection
         else { return }
+        
+        print (libraryURL)
+        print (currentCollection)
 
         Task {
             await load(
