@@ -12,6 +12,7 @@ import Combine
 final class NotesListModel: ObservableObject, NotesReloader {
 
     @Published private(set) var notes: [NoteSummary] = []
+    @Published private(set) var activeCollection: String?
     @Published private(set) var isLoading = false
 
     private var libraryURL: URL?
@@ -35,6 +36,7 @@ final class NotesListModel: ObservableObject, NotesReloader {
         }*/
 
         isLoading = true
+        defer { isLoading = false }
 
         do {
             let fetchedNotes = try await Task {
@@ -48,8 +50,7 @@ final class NotesListModel: ObservableObject, NotesReloader {
         } catch {
             notes = []
         }
-
-        isLoading = false
+        activeCollection = collection
     }
 
     // MARK: - NotesReloader
@@ -59,10 +60,6 @@ final class NotesListModel: ObservableObject, NotesReloader {
             let libraryURL,
             let currentCollection
         else { return }
-        
-        print (libraryURL)
-        print (currentCollection)
-
         Task {
             await load(
                 libraryURL: libraryURL,

@@ -13,9 +13,11 @@ struct LibraryLoadedView: View {
 
     @EnvironmentObject private var selection: SelectionModel
     @EnvironmentObject private var libraryManager: LibraryManager
+    @EnvironmentObject private var notesModel: NotesListModel
 
     @State private var selectedCollection: String
     @State private var editorPrewarmed = false
+    @State private var collectionSummaries: [String: CollectionLandingSummary] = [:]
 
     init(libraryURL: URL) {
         self.libraryURL = libraryURL
@@ -30,6 +32,10 @@ struct LibraryLoadedView: View {
                 ? initialCollection!
                 : "Inbox"
         )
+    }
+
+    private var landingSummary: CollectionLandingSummary? {
+        collectionSummaries[selectedCollection]
     }
 
     var body: some View {
@@ -51,33 +57,27 @@ struct LibraryLoadedView: View {
             // ───────── Notes list ─────────
             NotesListView(
                 libraryURL: libraryURL,
-                collection: selectedCollection,
-                onNotesLoaded: { notes in
-                    // Select first note immediately if none selected
-                    if selection.selectedNoteID == nil {
-                        selection.selectedNoteID = notes.first?.id
-                    }
-                }
+                collection: selectedCollection
             )
 
         } detail: {
 
             ZStack {
-                // ───────── Main editor surface ─────────
-                NoteSurfaceView(
-                    noteID: selection.selectedNoteID,
-                    libraryURL: libraryURL
-                )
+               // 1) Always-mounted editor (single instance for app session)
+               PersistentEditorHost(noteID: selection.selectedNoteID)
+                 .opacity(selection.selectedNoteID == nil ? 0 : 1)
 
-                // ───────── Hidden prewarm editor ─────────
-                if !editorPrewarmed {
-                    NoteEditorView(noteID: "__prewarm__") { _ in
-                        editorPrewarmed = true
-                    }
-                    .opacity(0)
-                    .frame(width: 0, height: 0)
-                }
-            }
+               // 2) Landing view overlays while no note is selected
+               if selection.selectedNoteID == nil {
+                 CollectionLandingView(
+                   collectionName: selectedCollection,
+                   summary: landingSummary
+                 )
+                 .opacity(selection.selectedNoteID == nil ? 1 : 0)
+                 .allowsHitTesting(selection.selectedNoteID == nil)
+                 .animation(.easeOut(duration: 0.14), value: selection.selectedNoteID)
+               }
+             }
         }
         .onChange(of: selectedCollection) { oldValue, newValue in
             guard oldValue != newValue else { return }
@@ -92,5 +92,23 @@ struct LibraryLoadedView: View {
                 )
             }
         }
+        .onReceive(notesModel.$activeCollection) { collectionID in
+            guard let collectionID else { return }
+            collectionSummaries[collectionID] = makeSummary(
+                for: collectionID,
+                notes: notesModel.notes
+            )
+        }
+    }
+
+    private func makeSummary(
+        for collectionID: String,
+        notes: [NoteSummary]
+    ) -> CollectionLandingSummary {
+        let latestDate = notes.map(\.modifiedAt).max()
+        return CollectionLandingSummary(
+            noteCount: notes.count,
+            lastUpdated: latestDate
+        )
     }
 }

@@ -7,7 +7,7 @@ import SwiftUI
 
 struct NoteSurfaceView: View {
 
-    let noteID: String?
+    let noteID: String
     let libraryURL: URL
 
     @State private var showLoadingAffordance = false
@@ -18,12 +18,8 @@ struct NoteSurfaceView: View {
         ZStack {
             Color(nsColor: .textBackgroundColor)
 
-            if let noteID {
-                NoteEditorView(noteID: noteID) { readyNoteID in
-                    handleEditorReady(readyNoteID)
-                }
-            } else {
-                EditorPlaceholderView()
+            NoteEditorView(noteID: noteID) { readyNoteID in
+                handleEditorReady(readyNoteID)
             }
 
             if showLoadingAffordance {
@@ -39,15 +35,10 @@ struct NoteSurfaceView: View {
         }
     }
 
-    private func prepareShell(for noteID: String?) {
+    private func prepareShell(for noteID: String) {
         activeNoteID = noteID
 
         shellDebounceTask?.cancel()
-
-        guard let noteID else {
-            showLoadingAffordance = false
-            return
-        }
 
         Task {
             await NotePrefetchCache.shared.preload(
@@ -97,19 +88,5 @@ struct EditorShellView: View {
             }
         }
         .allowsHitTesting(false)
-    }
-}
-
-struct EditorPlaceholderView: View {
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "square.and.pencil")
-                .font(.system(size: 32, weight: .light))
-                .foregroundStyle(.secondary)
-
-            Text("Select a note to start writing")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-        }
     }
 }

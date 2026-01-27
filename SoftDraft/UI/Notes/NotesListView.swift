@@ -16,7 +16,6 @@ struct NotesListView: View {
     @EnvironmentObject private var model: NotesListModel
     @State private var listSelection: String?
 
-    var onNotesLoaded: (([NoteSummary]) -> Void)?
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var commandRegistry: CommandRegistry
     
@@ -42,7 +41,6 @@ struct NotesListView: View {
                     libraryURL: libraryURL,
                     collection: collection
                 )
-                onNotesLoaded?(model.notes)
                 prefetchInitialNotes()
             }
             .onChange(of: collection) { _, newCollection in
@@ -51,7 +49,6 @@ struct NotesListView: View {
                         libraryURL: libraryURL,
                         collection: newCollection
                     )
-                    onNotesLoaded?(model.notes)
                     prefetchInitialNotes()
                 }
             }
