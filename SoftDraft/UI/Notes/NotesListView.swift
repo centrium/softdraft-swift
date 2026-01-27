@@ -43,6 +43,7 @@ struct NotesListView: View {
                     collection: collection
                 )
                 onNotesLoaded?(model.notes)
+                prefetchInitialNotes()
             }
             .onChange(of: collection) { _, newCollection in
                 Task {
@@ -51,6 +52,7 @@ struct NotesListView: View {
                         collection: newCollection
                     )
                     onNotesLoaded?(model.notes)
+                    prefetchInitialNotes()
                 }
             }
             .onAppear {
@@ -108,5 +110,24 @@ struct NotesListView: View {
     private func syncSelectionFromModel() {
         guard listSelection != selection.selectedNoteID else { return }
         listSelection = selection.selectedNoteID
+    }
+
+    private func prefetchInitialNotes() {
+        guard let libraryURL = libraryManager.activeLibraryURL else { return }
+
+        let targets = model.notes
+            .prefix(3)
+            .map(\.id)
+
+        guard !targets.isEmpty else { return }
+
+        Task {
+            for id in targets {
+                await NotePrefetchCache.shared.preload(
+                    libraryURL: libraryURL,
+                    noteID: id
+                )
+            }
+        }
     }
 }

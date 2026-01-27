@@ -1,3 +1,10 @@
+//
+//  NoteEditorView.swift
+//  SoftDraft
+//
+//  Created by Matt Adams on 24/01/2026.
+//
+
 import SwiftUI
 import MarkdownEditor
 
@@ -6,6 +13,11 @@ struct NoteEditorView: View {
     @EnvironmentObject private var libraryManager: LibraryManager
 
     let noteID: String
+    var onReady: ((String) -> Void)? = nil
+
+    private var isPrewarmInstance: Bool {
+        noteID == "__prewarm__"
+    }
 
     @State private var text: String = ""
     @State private var autosave = AutosaveController()
@@ -29,25 +41,35 @@ struct NoteEditorView: View {
         .task(id: noteID) {
             await loadNote()
         }
+
     }
 
     // MARK: - Load
 
     private func loadNote() async {
         autosave.cancel()
-        isLoading = true
 
-        text = ""
+        await MainActor.run {
+            isLoading = true
+        }
 
-        let loaded = await load()
+        let loaded = await fetchContent()
 
         guard !Task.isCancelled else {
-            isLoading = false
+            await MainActor.run {
+                isLoading = false
+            }
             return
         }
 
-        text = loaded
-        isLoading = false
+        await applyLoadedText(loaded)
+
+        if !isPrewarmInstance {
+            await NotePrefetchCache.shared.put(
+                noteID: noteID,
+                content: loaded
+            )
+        }
     }
 
     // MARK: - Persistence
@@ -69,5 +91,42 @@ struct NoteEditorView: View {
             noteID: noteID,
             content: content
         )
+
+        if !isPrewarmInstance {
+            await NotePrefetchCache.shared.put(
+                noteID: noteID,
+                content: content
+            )
+        }
+    }
+
+    private func fetchContent() async -> String {
+        if let prefetched = await NotePrefetchCache.shared.consume(noteID: noteID) {
+            return prefetched
+        }
+
+        guard let libraryURL = libraryManager.activeLibraryURL else {
+            return ""
+        }
+
+        await NotePrefetchCache.shared.preload(
+            libraryURL: libraryURL,
+            noteID: noteID
+        )
+
+        if let awaited = await NotePrefetchCache.shared.consume(noteID: noteID) {
+            return awaited
+        }
+
+        return await load()
+    }
+
+    @MainActor
+    private func applyLoadedText(_ value: String) {
+        // ✅ Do NOT clear text first
+        // Replace content only when ready
+        text = value
+        isLoading = false
+        onReady?(noteID)
     }
 }
