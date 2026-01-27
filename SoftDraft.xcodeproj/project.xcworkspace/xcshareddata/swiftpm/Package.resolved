@@ -1,0 +1,15 @@
+{
+  "originHash" : "79056716df9a58eeef7c7df6990056b88e3e11e12156a080dd281e128eeace12",
+  "pins" : [
+    {
+      "identity" : "markdowneditor",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/centrium/MarkdownEditor.git",
+      "state" : {
+        "branch" : "fix-mono-font",
+        "revision" : "668bce373b2c7dafc607ca8b6bdf9cbdb40ab8ea"
+      }
+    }
+  ],
+  "version" : 3
+}

@@ -7,23 +7,21 @@
 
 import SwiftUI
 
-func makeMoveNoteCommand(
-    destinationCollection: String
-) -> AppCommand {
+let moveNoteCommand = AppCommand(
+    id: "note.move",
+    title: "Move Note",
+    shortcut: KeyboardShortcut("m", modifiers: [.command]),
+    isEnabled: { ctx in
+        ctx.selection.selectedNoteID != nil
+    },
+    perform: { ctx in
+        guard let noteID = ctx.selection.selectedNoteID else { return }
 
-    AppCommand(
-        id: "note.move",
-        title: "Move Note",
-        shortcut: KeyboardShortcut("m", modifiers: [.command]),
-        isEnabled: { ctx in
-            ctx.selection.selectedNoteID != nil
-        },
-        perform: { ctx in
-            guard let noteID = ctx.selection.selectedNoteID else { return }
-
-            // Begin two-step move
-            ctx.selection.pendingMove = PendingMove(noteID: noteID)
-        }
-    )
-}
-
+        // Phase 1: intent only.
+        // This command deliberately does NOT complete the action.
+        ctx.selection.pendingMove = PendingMove(
+            noteID: noteID,
+            destinationCollection: nil
+        )
+    }
+)

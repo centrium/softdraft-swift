@@ -18,6 +18,7 @@ struct NotesListView: View {
 
     var onNotesLoaded: (([NoteSummary]) -> Void)?
     @EnvironmentObject private var libraryManager: LibraryManager
+    @EnvironmentObject private var commandRegistry: CommandRegistry
     
     private var collections: [String] {
         libraryManager.allCollections()
@@ -76,18 +77,15 @@ struct NotesListView: View {
                     onSelect: { destination in
                         selection.pendingMove = nil
 
-                        do {
-                            _ = try NoteStore.move(
-                                libraryURL: libraryURL,
-                                noteID: pending.noteID,
-                                destCollection: destination
-                            )
-                            model.reloadCurrentCollection()
-                        } catch {
-                            // TODO: Surface this error to the user if needed
-                            print("Failed to move note \(pending.noteID) to collection \(destination): \(error)")
-                        }
-                    }
+                        selection.pendingMove = PendingMove(
+                            noteID: pending.noteID,
+                            destinationCollection: destination
+                        )
+                        commandRegistry.run("note.move.confirm")
+                    },
+                    onCancel: {
+                        commandRegistry.run("command.cancel")
+                    },
                 )
                 .background(
                     Color.black.opacity(0.05)
@@ -112,4 +110,3 @@ struct NotesListView: View {
         listSelection = selection.selectedNoteID
     }
 }
-

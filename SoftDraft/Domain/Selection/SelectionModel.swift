@@ -10,6 +10,7 @@ import Combine
 
 struct PendingMove {
     let noteID: String
+    let destinationCollection: String?
 }
 
 @MainActor

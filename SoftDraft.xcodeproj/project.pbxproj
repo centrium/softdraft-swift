@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		C9160A972F28C6600070D66E /* MarkdownEditor in Frameworks */ = {isa = PBXBuildFile; productRef = C9160A962F28C6600070D66E /* MarkdownEditor */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		C91608F32F2013610070D66E /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -39,6 +43,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C9160A972F28C6600070D66E /* MarkdownEditor in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -57,6 +62,7 @@
 			children = (
 				C91608B82F200BE80070D66E /* SoftDraft */,
 				C91608F02F2013610070D66E /* SoftDraftTests */,
+				C91609C32F267A5D0070D66E /* Frameworks */,
 				C91608B72F200BE80070D66E /* Products */,
 			);
 			sourceTree = "<group>";
@@ -68,6 +74,13 @@
 				C91608EF2F2013610070D66E /* SoftDraftTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		C91609C32F267A5D0070D66E /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -90,6 +103,7 @@
 			);
 			name = SoftDraft;
 			packageProductDependencies = (
+				C9160A962F28C6600070D66E /* MarkdownEditor */,
 			);
 			productName = SoftDraft;
 			productReference = C91608B62F200BE80070D66E /* SoftDraft.app */;
@@ -125,6 +139,9 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
+				KnownAssetTags = (
+					New,
+				);
 				LastSwiftUpdateCheck = 2600;
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
@@ -147,6 +164,9 @@
 			);
 			mainGroup = C91608AD2F200BE70070D66E;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				C9160A952F28C6600070D66E /* XCRemoteSwiftPackageReference "MarkdownEditor" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C91608B72F200BE80070D66E /* Products */;
 			projectDirPath = "";
@@ -449,6 +469,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		C9160A952F28C6600070D66E /* XCRemoteSwiftPackageReference "MarkdownEditor" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/centrium/MarkdownEditor.git";
+			requirement = {
+				branch = "fix-mono-font";
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C9160A962F28C6600070D66E /* MarkdownEditor */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C9160A952F28C6600070D66E /* XCRemoteSwiftPackageReference "MarkdownEditor" */;
+			productName = MarkdownEditor;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = C91608AE2F200BE70070D66E /* Project object */;
 }

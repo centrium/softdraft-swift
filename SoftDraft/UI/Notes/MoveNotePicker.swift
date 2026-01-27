@@ -12,6 +12,7 @@ struct MoveNotePicker: View {
     @ObservedObject var selection: SelectionModel
     let collections: [String]
     let onSelect: (String) -> Void
+    let onCancel: () -> Void
 
     var body: some View {
         VStack {
@@ -23,5 +24,9 @@ struct MoveNotePicker: View {
             }
         }
         .padding()
+        .focusable()
+        .onExitCommand {
+            onCancel()
+        }
     }
 }

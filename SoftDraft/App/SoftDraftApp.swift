@@ -47,8 +47,9 @@ struct SoftdraftApp: App {
                 }
         }
         .commands {
+            GlobalCommands(commandRegistry: commandRegistry)
             LibraryCommands(libraryManager: libraryManager)
-                // 🔑 THIS LINE
-        }.environmentObject(commandRegistry)   
+            
+        }.environmentObject(commandRegistry)
     }
 }
