@@ -190,9 +190,67 @@ final class LibraryManager: ObservableObject {
             handleDeletion(noteID: noteID)
         }
     }
+    
+    @MainActor
+    func replaceNoteID(oldID: String, newID: String) {
+        // 1️⃣ Update selection immediately
+        if selection?.selectedNoteID == oldID {
+            selection?.selectedNoteID = newID
+        }
+
+        // 2️⃣ If the note is visible, rebuild its summary properly
+        guard
+            let libraryURL = activeLibraryURL,
+            let index = visibleNotes.firstIndex(where: { $0.id == oldID })
+        else {
+            return
+        }
+
+        let oldSummary = visibleNotes[index]
+
+        guard let newSummary = try? NoteSummaryFactory.make(
+            libraryURL: libraryURL,
+            noteID: newID,
+            pinned: oldSummary.pinned
+        ) else {
+            return
+        }
+
+        visibleNotes.remove(at: index)
+        visibleNotes.append(newSummary)
+        visibleNotes = sortNotes(visibleNotes)
+
+        signalExternalChange(for: newID)
+    }
+
+    @MainActor
+    func refreshNoteID(_ noteID: String) {
+        guard
+            let libraryURL = activeLibraryURL,
+            let index = visibleNotes.firstIndex(where: { $0.id == noteID })
+        else {
+            return
+        }
+
+        let pinned = visibleNotes[index].pinned
+
+        guard let summary = try? NoteSummaryFactory.make(
+            libraryURL: libraryURL,
+            noteID: noteID,
+            pinned: pinned
+        ) else {
+            return
+        }
+
+        visibleNotes.remove(at: index)
+        visibleNotes.append(summary)
+        visibleNotes = sortNotes(visibleNotes)
+
+        signalExternalChange(for: noteID)
+    }
 
     // MARK: - Helpers
-
+    
     private func transitionToLoadedLibrary(_ url: URL) {
         stopWatcher()
         activeLibraryURL = url

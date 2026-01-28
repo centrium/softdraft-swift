@@ -12,7 +12,7 @@ struct NoteEditorView: View {
 
     @EnvironmentObject private var libraryManager: LibraryManager
 
-    let noteID: String
+    @State var noteID: String
     var onReady: ((String) -> Void)? = nil
 
     private var isPrewarmInstance: Bool {
@@ -105,18 +105,40 @@ struct NoteEditorView: View {
     private func save(content: String) async {
         guard let libraryURL = libraryManager.activeLibraryURL else { return }
 
-        await libraryManager.beginInternalWrite(noteID: noteID)
+        let originalNoteID = noteID
+
+        libraryManager.beginInternalWrite(noteID: originalNoteID)
+
         do {
+            // 1️⃣ Save content (content-only operation)
             _ = try NoteStore.save(
                 libraryURL: libraryURL,
-                noteID: noteID,
+                noteID: originalNoteID,
                 content: content
             )
+
+            // 2️⃣ Decide + perform rename if needed
+            if let newNoteID = try RenameNote(
+                libraryURL: libraryURL,
+                noteID: originalNoteID,
+                content: content
+            ) {
+                // 3️⃣ Update editor state immediately (DO NOT wait for watcher)
+                await MainActor.run {
+                    self.noteID = newNoteID
+                    libraryManager.replaceNoteID(
+                        oldID: originalNoteID,
+                        newID: newNoteID
+                    )
+                }
+            }
+
         } catch {
-            await libraryManager.endInternalWrite(noteID: noteID)
+            libraryManager.endInternalWrite(noteID: originalNoteID)
             return
         }
-        await libraryManager.endInternalWrite(noteID: noteID)
+
+        libraryManager.endInternalWrite(noteID: noteID)
 
         await MainActor.run {
             if text == content {
@@ -131,7 +153,6 @@ struct NoteEditorView: View {
             )
         }
     }
-
     private func fetchContent() async -> String {
         if let prefetched = await NotePrefetchCache.shared.consume(noteID: noteID) {
             return prefetched

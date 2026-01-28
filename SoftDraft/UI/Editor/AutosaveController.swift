@@ -19,7 +19,13 @@ final class AutosaveController {
     ) {
         task?.cancel()
         task = Task {
-            try? await Task.sleep(for: delay)
+            do {
+                try await Task.sleep(for: delay)
+            } catch {
+                return
+            }
+
+            guard !Task.isCancelled else { return }
             await action()
         }
     }

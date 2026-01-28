@@ -20,3 +20,34 @@ enum MarkdownTitle {
         return nil
     }
 }
+
+func RenameNote(
+    libraryURL: URL,
+    noteID: String,
+    content: String
+) throws -> String? {
+
+    // 1. Extract desired title
+    guard let title = MarkdownTitle.extractH1(from: content) else {
+        return nil
+    }
+
+    // 2. Work out current vs desired filename
+    let currentFilename = (noteID as NSString).lastPathComponent
+    let currentSlug = currentFilename
+        .replacingOccurrences(of: ".md", with: "", options: .caseInsensitive)
+
+    let desiredSlug = Slugify.make(title)
+
+    // 3. No-op if nothing changed
+    guard !desiredSlug.isEmpty, desiredSlug != currentSlug else {
+        return nil
+    }
+
+    // 4. Authoritative rename
+    return try NoteStore.rename(
+        libraryURL: libraryURL,
+        oldID: noteID,
+        newTitle: title
+    )
+}

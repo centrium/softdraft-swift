@@ -8,78 +8,192 @@
 import SwiftUI
 import MarkdownEditor
 
-
 struct PersistentEditorHost: View {
-  @EnvironmentObject private var libraryManager: LibraryManager
+    @EnvironmentObject private var libraryManager: LibraryManager
 
-  let noteID: String?
+    // Incoming identity (selection-driven)
+    let noteID: String?
 
-  @State private var text: String = ""
-  @State private var autosave = AutosaveController()
-  @State private var isLoading = false
-  @State private var hasPendingEdits = false
-  @State private var observedExternalToken: UUID?
+    // Editor-owned mutable identity (CRITICAL for rename)
+    @State private var currentNoteID: String?
 
-  var body: some View {
-    MarkdownEditorView(
-      text: $text,
-      configuration: EditorConfiguration(
-        fontFamily: "SoftdraftEditorMono",
-        showLineNumbers: false
-      )
-    )
-    .onChange(of: text) { _, newValue in
-      guard !isLoading, let noteID else { return }
-      hasPendingEdits = true
-      autosave.schedule { await save(noteID: noteID, content: newValue) }
+    @State private var text: String = ""
+    @State private var autosave = AutosaveController()
+    @State private var isLoading = false
+    @State private var isApplyingLoadedText = false
+    @State private var hasPendingEdits = false
+    @State private var observedExternalToken: UUID?
+
+    var body: some View {
+        MarkdownEditorView(
+            text: $text,
+            configuration: EditorConfiguration(
+                fontFamily: "SoftdraftEditorMono",
+                showLineNumbers: false
+            )
+        )
+
+        // ───────── Text change → autosave ─────────
+        .onChange(of: text) { _, newValue in
+            guard
+                !isLoading,
+                !isApplyingLoadedText,
+                let id = currentNoteID
+            else { return }
+
+            hasPendingEdits = true
+
+            autosave.schedule {
+                await save(noteID: id, content: newValue)
+            }
+        }
+
+        // ───────── Selection change → load note ─────────
+        .task(id: noteID) {
+            guard noteID != currentNoteID else { return }
+
+            currentNoteID = noteID
+
+            guard let id = noteID else {
+                autosave.cancel()
+                text = ""
+                isLoading = false
+                isApplyingLoadedText = false
+                hasPendingEdits = false
+                observedExternalToken = nil
+                return
+            }
+
+            await loadIntoEditor(noteID: id)
+        }
+
+        // ───────── External change reconciliation ─────────
+        .onReceive(libraryManager.$externalChangeTokens) { tokens in
+            guard
+                let id = currentNoteID,
+                let token = tokens[id],
+                token != observedExternalToken,
+                !hasPendingEdits
+            else { return }
+
+            observedExternalToken = token
+
+            Task {
+                await loadIntoEditor(noteID: id)
+            }
+        }
     }
-    .task(id: noteID) {
-      guard let noteID else { return }
-      await loadIntoEditor(noteID: noteID)
-    }
-    .onReceive(libraryManager.$externalChangeTokens) { tokens in
-      guard
-        let noteID,
-        let token = tokens[noteID],
-        token != observedExternalToken,
-        !hasPendingEdits
-      else { return }
 
-      observedExternalToken = token
-      Task {
-        await loadIntoEditor(noteID: noteID)
-      }
-    }
-  }
+    // MARK: - Load
 
-  private func loadIntoEditor(noteID: String) async {
-    autosave.cancel()
-    isLoading = true
-    let loaded = (try? NoteStore.load(libraryURL: libraryManager.activeLibraryURL!, noteID: noteID)) ?? ""
-    if !Task.isCancelled { text = loaded }
-    isLoading = false
-    hasPendingEdits = false
-    observedExternalToken = libraryManager.externalChangeTokens[noteID]
-  }
+    private func loadIntoEditor(noteID: String) async {
+        autosave.cancel()
 
-  private func save(noteID: String, content: String) async {
-    guard let libraryURL = libraryManager.activeLibraryURL else { return }
-    await libraryManager.beginInternalWrite(noteID: noteID)
-    do {
-      _ = try NoteStore.save(
-        libraryURL: libraryURL,
-        noteID: noteID,
-        content: content
-      )
-    } catch {
-      await libraryManager.endInternalWrite(noteID: noteID)
-      return
+        await MainActor.run {
+            isLoading = true
+            isApplyingLoadedText = true
+        }
+
+        guard let libraryURL = libraryManager.activeLibraryURL else {
+            await MainActor.run {
+                text = ""
+                hasPendingEdits = false
+                observedExternalToken = nil
+            }
+            await finishApplyingLoadedText()
+            return
+        }
+
+        let loaded =
+            (try? NoteStore.load(
+                libraryURL: libraryURL,
+                noteID: noteID
+            )) ?? ""
+
+        guard !Task.isCancelled else {
+            await finishApplyingLoadedText()
+            return
+        }
+
+        await MainActor.run {
+            text = loaded
+            hasPendingEdits = false
+            observedExternalToken = libraryManager.externalChangeTokens[noteID]
+        }
+
+        await finishApplyingLoadedText()
     }
-    await libraryManager.endInternalWrite(noteID: noteID)
-    await MainActor.run {
-      if text == content {
-        hasPendingEdits = false
-      }
+
+    @MainActor
+    private func finishApplyingLoadedText() async {
+        isLoading = false
+
+        // Delay clearing the guard flag until the next run loop tick so the
+        // pending onChange triggered by text assignment does not schedule saves.
+        Task { @MainActor in
+            isApplyingLoadedText = false
+        }
     }
-  }
+
+    // MARK: - Save + Rename
+
+    private func save(noteID: String, content: String) async {
+        guard let libraryURL = libraryManager.activeLibraryURL else { return }
+
+        var didRename = false
+
+        await libraryManager.beginInternalWrite(noteID: noteID)
+
+        do {
+            // 1️⃣ Save content
+            _ = try NoteStore.save(
+                libraryURL: libraryURL,
+                noteID: noteID,
+                content: content
+            )
+
+            // 2️⃣ Attempt rename (your existing helper)
+            if let newID = try RenameNote(
+                libraryURL: libraryURL,
+                noteID: noteID,
+                content: content
+            ) {
+                didRename = true
+
+                await MainActor.run {
+                    // 🔑 Editor continuity
+                    currentNoteID = newID
+
+                    // 🔑 Sidebar + selection continuity
+                    libraryManager.replaceNoteID(
+                        oldID: noteID,
+                        newID: newID
+                    )
+
+                    observedExternalToken =
+                        libraryManager.externalChangeTokens[newID]
+                }
+            }
+
+        } catch {
+            await libraryManager.endInternalWrite(noteID: noteID)
+            return
+        }
+
+        await libraryManager.endInternalWrite(
+            noteID: currentNoteID ?? noteID
+        )
+
+        if !didRename {
+            await MainActor.run {
+                libraryManager.refreshNoteID(noteID)
+            }
+        }
+
+        await MainActor.run {
+            if text == content {
+                hasPendingEdits = false
+            }
+        }
+    }
 }
