@@ -27,25 +27,15 @@ extension NoteStore {
         var result: [NoteSummary] = []
 
         for url in urls where url.pathExtension == "md" {
-            let attrs = try url.resourceValues(forKeys: [.contentModificationDateKey])
-            let modified = attrs.contentModificationDate ?? Date()
-
-            let id = "\(collection)/\(url.lastPathComponent)"
-            let name = url.deletingPathExtension().lastPathComponent
-
-            let content = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-            let title = MarkdownTitle.extractH1(from: content) ?? name
-
-            result.append(
-                NoteSummary(
-                    id: id,
-                    name: name,
-                    title: title,
-                    relativeDir: collection,
-                    modifiedAt: modified,
-                    pinned: false // pins applied later
+            do {
+                let summary = try NoteSummaryFactory.make(
+                    fileURL: url,
+                    collection: collection
                 )
-            )
+                result.append(summary)
+            } catch {
+                continue
+            }
         }
 
         return result.sorted {

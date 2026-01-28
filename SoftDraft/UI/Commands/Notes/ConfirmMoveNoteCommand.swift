@@ -37,6 +37,7 @@ let confirmMoveNoteCommand = AppCommand(
 
         print("➡️ Moving \(pending.noteID) to \(destination)")
 
+        await ctx.libraryManager.beginInternalWrite(noteID: pending.noteID)
         do {
             let result = try NoteStore.move(
                 libraryURL: libraryURL,
@@ -44,12 +45,15 @@ let confirmMoveNoteCommand = AppCommand(
                 destCollection: destination
             )
             print("✅ Move result:", result)
+            ctx.libraryManager.suppressEvents(for: result)
         } catch {
             print("❌ Failed to move note:", error)
+            await ctx.libraryManager.endInternalWrite(noteID: pending.noteID)
             return
         }
 
-        ctx.notes.reloadCurrentCollection()
+        await ctx.libraryManager.endInternalWrite(noteID: pending.noteID)
+
+        ctx.libraryManager.reloadCurrentCollection()
     }
 )
-

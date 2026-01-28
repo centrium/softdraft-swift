@@ -13,7 +13,6 @@ struct NotesListView: View {
     let collection: String
 
     @EnvironmentObject private var selection: SelectionModel
-    @EnvironmentObject private var model: NotesListModel
     @State private var listSelection: String?
 
     @EnvironmentObject private var libraryManager: LibraryManager
@@ -30,14 +29,14 @@ struct NotesListView: View {
             // Main notes list
             // ─────────────────────────────
             List(selection: listSelectionBinding) {
-                ForEach(model.notes, id: \.id) { note in
+                ForEach(libraryManager.visibleNotes, id: \.id) { note in
                     NoteRow(note: note)
                         .tag(note.id)
                 }
             }
             .navigationTitle(collection)
             .task {
-                await model.load(
+                await libraryManager.loadNotes(
                     libraryURL: libraryURL,
                     collection: collection
                 )
@@ -45,7 +44,7 @@ struct NotesListView: View {
             }
             .onChange(of: collection) { _, newCollection in
                 Task {
-                    await model.load(
+                    await libraryManager.loadNotes(
                         libraryURL: libraryURL,
                         collection: newCollection
                     )
@@ -111,8 +110,9 @@ struct NotesListView: View {
 
     private func prefetchInitialNotes() {
         guard let libraryURL = libraryManager.activeLibraryURL else { return }
+        guard libraryManager.visibleCollectionID == collection else { return }
 
-        let targets = model.notes
+        let targets = libraryManager.visibleNotes
             .prefix(3)
             .map(\.id)
 

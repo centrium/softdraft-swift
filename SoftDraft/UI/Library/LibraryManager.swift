@@ -21,34 +21,43 @@ final class LibraryManager: ObservableObject {
 
     @Published private(set) var activeLibraryURL: URL?
     @Published private(set) var startupState: StartupState = .resolving
+    @Published private(set) var visibleNotes: [NoteSummary] = []
+    @Published private(set) var visibleCollectionID: String?
+    @Published private(set) var externalChangeTokens: [String: UUID] = [:]
+
+    private weak var selection: SelectionModel?
+    private var filesystemWatcher: LibraryFilesystemWatcher?
+    private var internalWriteDepth = 0
+    private var recentInternalWrites: [String: Date] = [:]
+    private let internalWriteCooldown: TimeInterval = 1.0
 
     // MARK: - Startup
+
+    func bind(selection: SelectionModel) {
+        self.selection = selection
+    }
 
     func resolveInitialLibrary() async {
         let config = await AppConfigStore.load()
 
         guard let url = config.lastLibraryURL else {
-            activeLibraryURL = nil
-            startupState = .noLibrary
+            transitionToNoLibrary()
             return
         }
 
         // Validate the library still exists and is usable
         guard LibraryValidator.isLibraryRoot(url) else {
-            activeLibraryURL = nil
-            startupState = .noLibrary
+            transitionToNoLibrary()
             return
         }
 
-        activeLibraryURL = url
-        startupState = .loaded(url)
+        transitionToLoadedLibrary(url)
     }
 
     // MARK: - Library lifecycle
 
     func setActiveLibrary(_ url: URL) async {
-        activeLibraryURL = url
-        startupState = .loaded(url)
+        transitionToLoadedLibrary(url)
 
         var config = await AppConfigStore.load()
         config.lastLibraryURL = url
@@ -56,11 +65,275 @@ final class LibraryManager: ObservableObject {
     }
 
     func clearLibrary() async {
-        activeLibraryURL = nil
-        startupState = .noLibrary
+        transitionToNoLibrary()
 
         var config = await AppConfigStore.load()
         config.lastLibraryURL = nil
         await AppConfigStore.save(config)
+    }
+
+    // MARK: - Internal writes
+
+    func beginInternalWrite(noteID: String? = nil) {
+        internalWriteDepth &+= 1
+        if let noteID {
+            recordInternalWrite(noteID)
+        }
+    }
+
+    func endInternalWrite(noteID: String? = nil) {
+        internalWriteDepth = max(0, internalWriteDepth - 1)
+        if let noteID {
+            recordInternalWrite(noteID)
+        }
+    }
+
+    private var isPerformingInternalWrite: Bool {
+        internalWriteDepth > 0
+    }
+
+    func suppressEvents(for noteID: String) {
+        recordInternalWrite(noteID)
+    }
+
+    private func recordInternalWrite(_ noteID: String) {
+        recentInternalWrites[noteID] = Date()
+    }
+
+    private func cleanupInternalWrites() {
+        guard !recentInternalWrites.isEmpty else { return }
+        let threshold = Date().addingTimeInterval(-internalWriteCooldown)
+        recentInternalWrites = recentInternalWrites.filter { _, timestamp in
+            timestamp >= threshold
+        }
+    }
+
+    private func shouldIgnore(noteID: String) -> Bool {
+        cleanupInternalWrites()
+        guard let timestamp = recentInternalWrites[noteID] else { return false }
+        return Date().timeIntervalSince(timestamp) < internalWriteCooldown
+    }
+
+    // MARK: - Notes loading
+
+    func loadNotes(
+        libraryURL: URL,
+        collection: String
+    ) async {
+        visibleCollectionID = collection
+
+        do {
+            let fetched = try await Task {
+                try NoteStore.list(
+                    libraryURL: libraryURL,
+                    collection: collection
+                )
+            }.value
+
+            guard visibleCollectionID == collection else { return }
+            visibleNotes = sortNotes(fetched)
+        } catch {
+            guard visibleCollectionID == collection else { return }
+            visibleNotes = []
+        }
+    }
+
+    func reloadCurrentCollection() {
+        guard
+            let libraryURL = activeLibraryURL,
+            let collection = visibleCollectionID
+        else { return }
+
+        Task {
+            await loadNotes(
+                libraryURL: libraryURL,
+                collection: collection
+            )
+        }
+    }
+
+    // MARK: - Filesystem reconciliation
+
+    func reconcile(_ event: LibraryFilesystemEvent) {
+        guard
+            let libraryURL = activeLibraryURL,
+            !isPerformingInternalWrite
+        else { return }
+
+        cleanupInternalWrites()
+
+        switch event {
+        case .added(let noteID):
+            guard !shouldIgnore(noteID: noteID) else { return }
+            handleAddition(
+                noteID: noteID,
+                libraryURL: libraryURL
+            )
+
+        case .modified(let noteID):
+            guard !shouldIgnore(noteID: noteID) else { return }
+            handleModification(
+                noteID: noteID,
+                libraryURL: libraryURL
+            )
+
+        case let .renamed(from, to):
+            guard !shouldIgnore(noteID: from), !shouldIgnore(noteID: to) else { return }
+            handleRename(
+                from: from,
+                to: to,
+                libraryURL: libraryURL
+            )
+
+        case .deleted(let noteID):
+            guard !shouldIgnore(noteID: noteID) else { return }
+            handleDeletion(noteID: noteID)
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func transitionToLoadedLibrary(_ url: URL) {
+        stopWatcher()
+        activeLibraryURL = url
+        startupState = .loaded(url)
+        resetVisibleState()
+        startWatcher(for: url)
+    }
+
+    private func transitionToNoLibrary() {
+        stopWatcher()
+        activeLibraryURL = nil
+        startupState = .noLibrary
+        resetVisibleState()
+        selection?.selectedNoteID = nil
+    }
+
+    private func resetVisibleState() {
+        visibleNotes = []
+        visibleCollectionID = nil
+    }
+
+    private func startWatcher(for url: URL) {
+        let watcher = LibraryFilesystemWatcher(libraryURL: url) { [weak self] events in
+            guard let self else { return }
+            Task { @MainActor in
+                guard !self.isPerformingInternalWrite else { return }
+                for event in events {
+                    self.reconcile(event)
+                }
+            }
+        }
+        watcher.start()
+        filesystemWatcher = watcher
+    }
+
+    private func stopWatcher() {
+        filesystemWatcher?.stop()
+        filesystemWatcher = nil
+    }
+
+    private func isNoteInVisibleCollection(_ noteID: String) -> Bool {
+        guard let visibleCollectionID else { return false }
+        return noteID.hasPrefix("\(visibleCollectionID)/")
+    }
+
+    private func handleAddition(
+        noteID: String,
+        libraryURL: URL
+    ) {
+        guard isNoteInVisibleCollection(noteID) else { return }
+
+        let pinned = visibleNotes.first(where: { $0.id == noteID })?.pinned ?? false
+        guard let summary = try? NoteSummaryFactory.make(
+            libraryURL: libraryURL,
+            noteID: noteID,
+            pinned: pinned
+        ) else { return }
+
+        upsert(summary)
+    }
+
+    private func handleModification(
+        noteID: String,
+        libraryURL: URL
+    ) {
+        guard isNoteInVisibleCollection(noteID) else { return }
+        let pinned = visibleNotes.first(where: { $0.id == noteID })?.pinned ?? false
+
+        guard let summary = try? NoteSummaryFactory.make(
+            libraryURL: libraryURL,
+            noteID: noteID,
+            pinned: pinned
+        ) else { return }
+
+        upsert(summary)
+    }
+
+    private func handleRename(
+        from: String,
+        to: String,
+        libraryURL: URL
+    ) {
+        let wasVisible = isNoteInVisibleCollection(from)
+        let isVisible = isNoteInVisibleCollection(to)
+        let pinned = visibleNotes.first(where: { $0.id == from })?.pinned ?? false
+
+        if wasVisible {
+            removeNote(withID: from)
+        }
+
+        if isVisible {
+            guard let summary = try? NoteSummaryFactory.make(
+                libraryURL: libraryURL,
+                noteID: to,
+                pinned: pinned
+            ) else { return }
+            upsert(summary)
+        }
+
+        if selection?.selectedNoteID == from {
+            selection?.selectedNoteID = to
+            signalExternalChange(for: to)
+        }
+    }
+
+    private func handleDeletion(noteID: String) {
+        removeNote(withID: noteID)
+
+        if selection?.selectedNoteID == noteID {
+            selection?.selectedNoteID = nil
+        }
+    }
+
+    private func upsert(_ summary: NoteSummary) {
+        if let index = visibleNotes.firstIndex(where: { $0.id == summary.id }) {
+            visibleNotes.remove(at: index)
+        }
+
+        visibleNotes.append(summary)
+        visibleNotes = sortNotes(visibleNotes)
+        signalExternalChange(for: summary.id)
+    }
+
+    private func removeNote(withID id: String) {
+        guard let index = visibleNotes.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        visibleNotes.remove(at: index)
+        externalChangeTokens.removeValue(forKey: id)
+    }
+
+    private func sortNotes(_ notes: [NoteSummary]) -> [NoteSummary] {
+        notes.sorted { lhs, rhs in
+            if lhs.modifiedAt == rhs.modifiedAt {
+                return lhs.id < rhs.id
+            }
+            return lhs.modifiedAt > rhs.modifiedAt
+        }
+    }
+
+    private func signalExternalChange(for noteID: String) {
+        externalChangeTokens[noteID] = UUID()
     }
 }

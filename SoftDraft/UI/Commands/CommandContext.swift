@@ -13,7 +13,6 @@ struct CommandContext {
 
     let libraryManager: LibraryManager
     let selection: SelectionModel
-    let notes: NotesReloader
 
     var libraryURL: URL? {
         libraryManager.currentLibraryURL

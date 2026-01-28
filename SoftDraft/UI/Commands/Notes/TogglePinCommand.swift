@@ -28,6 +28,6 @@ let togglePinCommand = AppCommand(
 
         await LibraryMetaStore.save(meta, to: libraryURL)
 
-        ctx.notes.reloadCurrentCollection()
+        ctx.libraryManager.reloadCurrentCollection()
     }
 )

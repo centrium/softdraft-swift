@@ -22,6 +22,8 @@ struct NoteEditorView: View {
     @State private var text: String = ""
     @State private var autosave = AutosaveController()
     @State private var isLoading = false
+    @State private var hasPendingEdits = false
+    @State private var observedExternalToken: UUID?
 
     var body: some View {
         MarkdownEditorView(
@@ -34,12 +36,25 @@ struct NoteEditorView: View {
         .onChange(of: text) { _, newValue in
             guard !isLoading else { return }
 
+            hasPendingEdits = true
             autosave.schedule {
                 await save(content: newValue)
             }
         }
         .task(id: noteID) {
             await loadNote()
+        }
+        .onReceive(libraryManager.$externalChangeTokens) { tokens in
+            guard
+                let token = tokens[noteID],
+                token != observedExternalToken,
+                !hasPendingEdits
+            else { return }
+
+            observedExternalToken = token
+            Task {
+                await loadNote()
+            }
         }
 
     }
@@ -63,6 +78,10 @@ struct NoteEditorView: View {
         }
 
         await applyLoadedText(loaded)
+        await MainActor.run {
+            observedExternalToken = libraryManager.externalChangeTokens[noteID]
+            hasPendingEdits = false
+        }
 
         if !isPrewarmInstance {
             await NotePrefetchCache.shared.put(
@@ -86,11 +105,24 @@ struct NoteEditorView: View {
     private func save(content: String) async {
         guard let libraryURL = libraryManager.activeLibraryURL else { return }
 
-        try? NoteStore.save(
-            libraryURL: libraryURL,
-            noteID: noteID,
-            content: content
-        )
+        await libraryManager.beginInternalWrite(noteID: noteID)
+        do {
+            _ = try NoteStore.save(
+                libraryURL: libraryURL,
+                noteID: noteID,
+                content: content
+            )
+        } catch {
+            await libraryManager.endInternalWrite(noteID: noteID)
+            return
+        }
+        await libraryManager.endInternalWrite(noteID: noteID)
+
+        await MainActor.run {
+            if text == content {
+                hasPendingEdits = false
+            }
+        }
 
         if !isPrewarmInstance {
             await NotePrefetchCache.shared.put(

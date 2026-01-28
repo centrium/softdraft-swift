@@ -13,7 +13,6 @@ struct LibraryLoadedView: View {
 
     @EnvironmentObject private var selection: SelectionModel
     @EnvironmentObject private var libraryManager: LibraryManager
-    @EnvironmentObject private var notesModel: NotesListModel
 
     @State private var selectedCollection: String
     @State private var editorPrewarmed = false
@@ -92,11 +91,11 @@ struct LibraryLoadedView: View {
                 )
             }
         }
-        .onReceive(notesModel.$activeCollection) { collectionID in
-            guard let collectionID else { return }
-            collectionSummaries[collectionID] = makeSummary(
-                for: collectionID,
-                notes: notesModel.notes
+        .onReceive(libraryManager.$visibleNotes) { notes in
+            guard let activeCollection = libraryManager.visibleCollectionID else { return }
+            collectionSummaries[activeCollection] = makeSummary(
+                for: activeCollection,
+                notes: notes
             )
         }
     }

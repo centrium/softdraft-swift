@@ -17,6 +17,8 @@ struct PersistentEditorHost: View {
   @State private var text: String = ""
   @State private var autosave = AutosaveController()
   @State private var isLoading = false
+  @State private var hasPendingEdits = false
+  @State private var observedExternalToken: UUID?
 
   var body: some View {
     MarkdownEditorView(
@@ -28,11 +30,25 @@ struct PersistentEditorHost: View {
     )
     .onChange(of: text) { _, newValue in
       guard !isLoading, let noteID else { return }
+      hasPendingEdits = true
       autosave.schedule { await save(noteID: noteID, content: newValue) }
     }
     .task(id: noteID) {
       guard let noteID else { return }
       await loadIntoEditor(noteID: noteID)
+    }
+    .onReceive(libraryManager.$externalChangeTokens) { tokens in
+      guard
+        let noteID,
+        let token = tokens[noteID],
+        token != observedExternalToken,
+        !hasPendingEdits
+      else { return }
+
+      observedExternalToken = token
+      Task {
+        await loadIntoEditor(noteID: noteID)
+      }
     }
   }
 
@@ -42,10 +58,28 @@ struct PersistentEditorHost: View {
     let loaded = (try? NoteStore.load(libraryURL: libraryManager.activeLibraryURL!, noteID: noteID)) ?? ""
     if !Task.isCancelled { text = loaded }
     isLoading = false
+    hasPendingEdits = false
+    observedExternalToken = libraryManager.externalChangeTokens[noteID]
   }
 
   private func save(noteID: String, content: String) async {
     guard let libraryURL = libraryManager.activeLibraryURL else { return }
-    try? NoteStore.save(libraryURL: libraryURL, noteID: noteID, content: content)
+    await libraryManager.beginInternalWrite(noteID: noteID)
+    do {
+      _ = try NoteStore.save(
+        libraryURL: libraryURL,
+        noteID: noteID,
+        content: content
+      )
+    } catch {
+      await libraryManager.endInternalWrite(noteID: noteID)
+      return
+    }
+    await libraryManager.endInternalWrite(noteID: noteID)
+    await MainActor.run {
+      if text == content {
+        hasPendingEdits = false
+      }
+    }
   }
 }
