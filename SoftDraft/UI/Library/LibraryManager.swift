@@ -138,7 +138,10 @@ final class LibraryManager: ObservableObject {
         }
     }
 
-    func reloadCurrentCollection() {
+    func reloadCurrentCollection(
+        preferredSelection: String? = nil,
+        enforceSelection: Bool = false
+    ) {
         guard
             let libraryURL = activeLibraryURL,
             let collection = visibleCollectionID
@@ -149,6 +152,10 @@ final class LibraryManager: ObservableObject {
                 libraryURL: libraryURL,
                 collection: collection
             )
+
+            if enforceSelection {
+                finalizeSelectionAfterRemoval(preferred: preferredSelection)
+            }
         }
     }
 
@@ -247,6 +254,119 @@ final class LibraryManager: ObservableObject {
         visibleNotes = sortNotes(visibleNotes)
 
         signalExternalChange(for: noteID)
+    }
+    
+    @discardableResult
+    func prepareSelectionForRemoval(of noteID: String) -> (preferredNextID: String?, affectedVisibleList: Bool) {
+        guard let index = visibleNotes.firstIndex(where: { $0.id == noteID }) else {
+            return (nil, false)
+        }
+
+        let preferred = neighborID(around: index)
+
+        if let preferred {
+            selection?.selectNote(preferred)
+        } else if visibleNotes.count == 1 {
+            selection?.selectNote(nil)
+        }
+
+        return (preferred, true)
+    }
+
+    private func finalizeSelectionAfterRemoval(preferred: String?) {
+        if visibleNotes.isEmpty {
+            selection?.selectNote(nil)
+            return
+        }
+
+        if let current = selection?.selectedNoteID,
+           visibleNotes.contains(where: { $0.id == current }) {
+            return
+        }
+
+        if let preferred,
+           visibleNotes.contains(where: { $0.id == preferred }) {
+            selection?.selectNote(preferred)
+            return
+        }
+
+        selection?.selectNote(visibleNotes.first?.id)
+    }
+
+    private func neighborID(around index: Int) -> String? {
+        if index + 1 < visibleNotes.count {
+            return visibleNotes[index + 1].id
+        }
+
+        if index > 0 {
+            return visibleNotes[index - 1].id
+        }
+
+        return nil
+    }
+    
+    // MARK: - Note mutations
+
+    func createNote(
+        in collectionID: String,
+        libraryURL: URL
+    ) async -> String? {
+
+        beginInternalWrite()
+        defer { endInternalWrite() }
+
+        let result: (summary: NoteSummary, content: String)
+
+        do {
+            result = try NoteStore.create(
+                libraryURL: libraryURL,
+                collection: collectionID,
+                title: "Untitled"
+            )
+        } catch {
+            print("Failed to create note:", error)
+            return nil
+        }
+
+        // Reload for consistency (single source of truth)
+        await loadNotes(
+            libraryURL: libraryURL,
+            collection: collectionID
+        )
+
+        return result.summary.id
+    }
+    
+    func deleteNote(
+        _ noteID: String,
+        from collectionID: String,
+        libraryURL: URL
+    ) async {
+
+        let selectionPlan = prepareSelectionForRemoval(of: noteID)
+
+        beginInternalWrite(noteID: noteID)
+        defer { endInternalWrite(noteID: noteID) }
+
+        do {
+            _ = try NoteStore.delete(
+                libraryURL: libraryURL,
+                noteID: noteID
+            )
+        } catch {
+            print("Failed to delete note:", error)
+        }
+
+        await loadNotes(
+            libraryURL: libraryURL,
+            collection: collectionID
+        )
+
+        guard visibleCollectionID == collectionID else { return }
+
+        if selectionPlan.affectedVisibleList {
+            finalizeSelectionAfterRemoval(preferred: selectionPlan.preferredNextID)
+        }
     }
 
     // MARK: - Helpers

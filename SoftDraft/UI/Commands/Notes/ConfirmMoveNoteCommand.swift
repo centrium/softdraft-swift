@@ -32,6 +32,15 @@ let confirmMoveNoteCommand = AppCommand(
             return
         }
 
+        let currentCollection = (pending.noteID as NSString).deletingLastPathComponent
+
+        let selectionPlan: (preferredNextID: String?, affectedVisibleList: Bool)
+        if currentCollection != destination {
+            selectionPlan = await ctx.libraryManager.prepareSelectionForRemoval(of: pending.noteID)
+        } else {
+            selectionPlan = (nil, false)
+        }
+
         // Clear pending state FIRST
         ctx.selection.pendingMove = nil
 
@@ -54,6 +63,9 @@ let confirmMoveNoteCommand = AppCommand(
 
         await ctx.libraryManager.endInternalWrite(noteID: pending.noteID)
 
-        ctx.libraryManager.reloadCurrentCollection()
+        ctx.libraryManager.reloadCurrentCollection(
+            preferredSelection: selectionPlan.preferredNextID,
+            enforceSelection: selectionPlan.affectedVisibleList
+        )
     }
 )

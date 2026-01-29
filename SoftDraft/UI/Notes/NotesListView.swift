@@ -43,6 +43,8 @@ struct NotesListView: View {
                 prefetchInitialNotes()
             }
             .onChange(of: collection) { _, newCollection in
+                selection.selectCollection(newCollection)
+
                 Task {
                     await libraryManager.loadNotes(
                         libraryURL: libraryURL,
@@ -52,6 +54,7 @@ struct NotesListView: View {
                 }
             }
             .onAppear {
+                selection.selectCollection(collection)
                 syncSelectionFromModel()
             }
             .onChange(of: selection.selectedNoteID) { _, newValue in

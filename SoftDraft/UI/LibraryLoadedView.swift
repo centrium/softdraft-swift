@@ -78,6 +78,9 @@ struct LibraryLoadedView: View {
                }
              }
         }
+        .onAppear {
+            selection.selectCollection(selectedCollection)
+        }
         .onChange(of: selectedCollection) { oldValue, newValue in
             guard oldValue != newValue else { return }
 

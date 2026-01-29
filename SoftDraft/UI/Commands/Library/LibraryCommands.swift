@@ -18,6 +18,12 @@ struct LibraryCommands: Commands {
 
         // ───────── File / Library ─────────
         CommandGroup(replacing: .newItem) {
+            Button("New Note") {
+                commandRegistry.run("note.create")
+            }
+            .keyboardShortcut("n", modifiers: [.command])
+            .disabled(!commandRegistry.canExecute("note.create"))
+            
             Button("Open Library…") {
                 openLibrary()
             }
@@ -37,6 +43,11 @@ struct LibraryCommands: Commands {
             }
             .keyboardShortcut("m", modifiers: [.command])
             .disabled(!commandRegistry.canExecute("note.move"))
+            Button("Delete Note") {
+                commandRegistry.run("note.delete")
+            }
+            .keyboardShortcut(.delete, modifiers: [.command])
+            .disabled(!commandRegistry.canExecute("note.delete"))
         }
     }
 

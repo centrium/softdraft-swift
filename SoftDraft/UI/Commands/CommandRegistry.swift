@@ -46,6 +46,8 @@ final class CommandRegistry: ObservableObject {
         register(moveNoteCommand)
         register(confirmMoveNoteCommand)
         register(cancelPendingCommand)
+        register(createNoteCommand)
+        register(deleteNoteCommand)
         // others come later
     }
 
@@ -57,6 +59,12 @@ final class CommandRegistry: ObservableObject {
             .store(in: &cancellables)
 
         context.libraryManager.$activeLibraryURL
+            .sink { [weak self] _ in
+                self?.scheduleContextChange()
+            }
+            .store(in: &cancellables)
+        
+        context.selection.$selectedCollectionID
             .sink { [weak self] _ in
                 self?.scheduleContextChange()
             }
