@@ -44,6 +44,12 @@ struct LibraryCommands: Commands {
             .keyboardShortcut("r", modifiers: [.command])
             .disabled(!commandRegistry.canExecute("collection.rename.begin"))
             
+            Button("Delete Current Collection") {
+                commandRegistry.run("collection.delete")
+            }
+            .keyboardShortcut(.delete, modifiers: [.command, .shift])
+            .disabled(!commandRegistry.canExecute("collection.delete"))
+            
         }
 
         // ───────── Note commands ─────────

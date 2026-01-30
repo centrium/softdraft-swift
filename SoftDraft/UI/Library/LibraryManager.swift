@@ -28,6 +28,7 @@ final class LibraryManager: ObservableObject {
     @Published private(set) var externalChangeTokens: [String: UUID] = [:]
     @Published private(set) var visibleCollections: [String] = []
     private var cancellables: Set<AnyCancellable> = []
+    let mandatoryCollections: Set<String> = ["Inbox"]
 
     private weak var selection: SelectionModel?
     private var filesystemWatcher: LibraryFilesystemWatcher?
@@ -432,7 +433,7 @@ final class LibraryManager: ObservableObject {
         defer { endInternalWrite() }
 
         do {
-            try CollectionStore.rename(
+            try _ = CollectionStore.rename(
                 libraryURL: libraryURL,
                 oldName: oldID,
                 newName: newID
@@ -444,6 +445,44 @@ final class LibraryManager: ObservableObject {
         await reloadCollections(libraryURL: libraryURL)
     }
     
+    // MARK: - Collections
+
+    func deleteCollection(
+        _ collectionID: String,
+        libraryURL: URL
+    ) async {
+
+        guard !mandatoryCollections.contains(collectionID) else {
+            print("Refusing to delete mandatory collection:", collectionID)
+            return
+        }
+
+        guard visibleCollections.contains(collectionID) else { return }
+
+        let nextSelection = neighborCollection(afterRemoving: collectionID)
+
+        beginInternalWrite()
+        defer { endInternalWrite() }
+
+        do {
+            try CollectionStore.delete(
+                libraryURL: libraryURL,
+                name: collectionID
+            )
+        } catch {
+            print("Failed to delete collection:", error)
+            return
+        }
+
+        await reloadCollections(libraryURL: libraryURL)
+
+        if let next = nextSelection {
+            selection?.selectCollection(next)
+        } else {
+            selection?.selectCollection(nil)
+        }
+    }
+    
     // MARK: - Helpers
     
     private func transitionToLoadedLibrary(_ url: URL) {
@@ -453,6 +492,7 @@ final class LibraryManager: ObservableObject {
         resetVisibleState()
 
         Task {
+            await ensureMandatoryCollectionsExist(libraryURL: url)
             await reloadCollections(libraryURL: url)
         }
 
@@ -537,6 +577,22 @@ final class LibraryManager: ObservableObject {
         }
 
         return "\(base) \(index)"
+    }
+    
+    private func neighborCollection(afterRemoving name: String) -> String? {
+        guard let index = visibleCollections.firstIndex(of: name) else {
+            return nil
+        }
+
+        if index + 1 < visibleCollections.count {
+            return visibleCollections[index + 1]
+        }
+
+        if index > 0 {
+            return visibleCollections[index - 1]
+        }
+
+        return nil
     }
 
     private func handleModification(
@@ -643,6 +699,32 @@ final class LibraryManager: ObservableObject {
             visibleCollections = names
         } catch {
             visibleCollections = []
+        }
+    }
+    
+    func collectionHasNotes(
+        _ collectionID: String,
+        libraryURL: URL
+    ) -> Bool {
+        do {
+            let notes = try NoteStore.list(
+                libraryURL: libraryURL,
+                collection: collectionID
+            )
+            return !notes.isEmpty
+        } catch {
+            return false
+        }
+    }
+    
+    func ensureMandatoryCollectionsExist(libraryURL: URL) async {
+        let collectionsURL = libraryURL.appendingPathComponent(collectionsDir)
+
+        for name in mandatoryCollections {
+            let url = collectionsURL.appendingPathComponent(name)
+            if !FileManager.default.fileExists(atPath: url.path) {
+                try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
+            }
         }
     }
 }
