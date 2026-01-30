@@ -48,6 +48,10 @@ final class CommandRegistry: ObservableObject {
         register(cancelPendingCommand)
         register(createNoteCommand)
         register(deleteNoteCommand)
+        register(createCollectionCommand)
+        register(beginRenameCollectionCommand)
+        register(confirmRenameCollectionCommand)
+        register(cancelRenameCollectionCommand)
         // others come later
     }
 

@@ -18,12 +18,16 @@ final class LibraryManager: ObservableObject {
         case noLibrary
         case loaded(URL)
     }
+    
+    let collectionsDir = "collections"
 
     @Published private(set) var activeLibraryURL: URL?
     @Published private(set) var startupState: StartupState = .resolving
     @Published private(set) var visibleNotes: [NoteSummary] = []
     @Published private(set) var visibleCollectionID: String?
     @Published private(set) var externalChangeTokens: [String: UUID] = [:]
+    @Published private(set) var visibleCollections: [String] = []
+    private var cancellables: Set<AnyCancellable> = []
 
     private weak var selection: SelectionModel?
     private var filesystemWatcher: LibraryFilesystemWatcher?
@@ -35,6 +39,25 @@ final class LibraryManager: ObservableObject {
 
     func bind(selection: SelectionModel) {
         self.selection = selection
+
+        // Persist last active collection when selection changes
+        selection.$selectedCollectionID
+            .compactMap { $0 }
+            .removeDuplicates()
+            .sink { [weak self] collectionID in
+                guard
+                    let self,
+                    let libraryURL = self.activeLibraryURL
+                else { return }
+
+                Task {
+                    await LibraryMetaStore.updateLastActiveCollection(
+                        libraryURL,
+                        collectionId: collectionID
+                    )
+                }
+            }
+            .store(in: &cancellables)
     }
 
     func resolveInitialLibrary() async {
@@ -368,7 +391,59 @@ final class LibraryManager: ObservableObject {
             finalizeSelectionAfterRemoval(preferred: selectionPlan.preferredNextID)
         }
     }
+    
+    // MARK: - Collections
+    
+    func createCollection(
+        libraryURL: URL
+    ) async -> String? {
 
+        beginInternalWrite()
+        defer { endInternalWrite() }
+
+        let name = nextAvailableCollectionName(
+            in: libraryURL
+        )
+
+        let collectionID: String
+
+        do {
+            collectionID = try CollectionStore.create(
+                libraryURL: libraryURL,
+                name: name
+            )
+        } catch {
+            print("Failed to create collection:", error)
+            return nil
+        }
+
+        await reloadCollections(libraryURL: libraryURL)
+
+        return collectionID
+    }
+    
+    func renameCollection(
+        from oldID: String,
+        to newID: String,
+        libraryURL: URL
+    ) async {
+
+        beginInternalWrite()
+        defer { endInternalWrite() }
+
+        do {
+            try CollectionStore.rename(
+                libraryURL: libraryURL,
+                oldName: oldID,
+                newName: newID
+            )
+        } catch {
+            print("Failed to rename collection:", error)
+        }
+
+        await reloadCollections(libraryURL: libraryURL)
+    }
+    
     // MARK: - Helpers
     
     private func transitionToLoadedLibrary(_ url: URL) {
@@ -376,6 +451,11 @@ final class LibraryManager: ObservableObject {
         activeLibraryURL = url
         startupState = .loaded(url)
         resetVisibleState()
+
+        Task {
+            await reloadCollections(libraryURL: url)
+        }
+
         startWatcher(for: url)
     }
 
@@ -430,6 +510,33 @@ final class LibraryManager: ObservableObject {
         ) else { return }
 
         upsert(summary)
+    }
+    
+    private func nextAvailableCollectionName(
+        in libraryURL: URL
+    ) -> String {
+
+        let base = "New Collection"
+        let collectionsURL = libraryURL
+            .appendingPathComponent(collectionsDir)
+
+        let existing =
+            (try? FileManager.default.contentsOfDirectory(
+                at: collectionsURL,
+                includingPropertiesForKeys: nil
+            ))?
+            .map { $0.lastPathComponent } ?? []
+
+        if !existing.contains(base) {
+            return base
+        }
+
+        var index = 2
+        while existing.contains("\(base) \(index)") {
+            index += 1
+        }
+
+        return "\(base) \(index)"
     }
 
     private func handleModification(
@@ -513,5 +620,29 @@ final class LibraryManager: ObservableObject {
 
     private func signalExternalChange(for noteID: String) {
         externalChangeTokens[noteID] = UUID()
+    }
+    
+    func reloadCollections(
+        libraryURL: URL
+    ) async {
+
+        do {
+            let collectionsURL = libraryURL
+                .appendingPathComponent(collectionsDir)
+
+            let items = try FileManager.default.contentsOfDirectory(
+                at: collectionsURL,
+                includingPropertiesForKeys: nil
+            )
+
+            let names = items
+                .filter { $0.hasDirectoryPath }
+                .map { $0.lastPathComponent }
+                .sorted()
+
+            visibleCollections = names
+        } catch {
+            visibleCollections = []
+        }
     }
 }

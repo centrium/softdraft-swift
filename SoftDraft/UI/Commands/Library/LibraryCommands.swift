@@ -23,11 +23,27 @@ struct LibraryCommands: Commands {
             }
             .keyboardShortcut("n", modifiers: [.command])
             .disabled(!commandRegistry.canExecute("note.create"))
+            Button("New Collection") {
+                commandRegistry.run("collection.create")
+            }
+            .keyboardShortcut("n", modifiers: [.command, .shift])
+            .disabled(!commandRegistry.canExecute("collection.create"))
             
             Button("Open Library…") {
                 openLibrary()
             }
             .keyboardShortcut("o", modifiers: [.command])
+        }
+        
+        // --------- Collection commands --------
+        CommandMenu("Collections") {
+
+            Button("Rename Current Collection") {
+                commandRegistry.run("collection.rename.begin")
+            }
+            .keyboardShortcut("r", modifiers: [.command])
+            .disabled(!commandRegistry.canExecute("collection.rename.begin"))
+            
         }
 
         // ───────── Note commands ─────────

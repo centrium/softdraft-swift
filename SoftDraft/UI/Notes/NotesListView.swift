@@ -28,43 +28,61 @@ struct NotesListView: View {
             // ─────────────────────────────
             // Main notes list
             // ─────────────────────────────
-            List(selection: listSelectionBinding) {
-                ForEach(libraryManager.visibleNotes, id: \.id) { note in
-                    NoteRow(note: note)
-                        .tag(note.id)
+                List(selection: listSelectionBinding) {
+                    if libraryManager.visibleNotes.isEmpty {
+                            HStack {
+                                Spacer()
+                                Button {
+                                    commandRegistry.run("note.create")
+                                } label: {
+                                    Label("New note", systemImage: "plus")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .opacity(0.8)
+                                }
+                                .buttonStyle(.plain)
+                                Spacer()
+                            }
+                            .padding(.vertical, 12)
+                            .listRowSeparator(.hidden)
+                        } else {
+                            ForEach(libraryManager.visibleNotes, id: \.id) { note in
+                                NoteRow(note: note)
+                                    .tag(note.id)
+                            }
+                        }
                 }
-            }
-            .navigationTitle(collection)
-            .task {
-                await libraryManager.loadNotes(
-                    libraryURL: libraryURL,
-                    collection: collection
-                )
-                prefetchInitialNotes()
-            }
-            .onChange(of: collection) { _, newCollection in
-                selection.selectCollection(newCollection)
-
-                Task {
+                .navigationTitle(collection)
+                .task {
                     await libraryManager.loadNotes(
                         libraryURL: libraryURL,
-                        collection: newCollection
+                        collection: collection
                     )
                     prefetchInitialNotes()
                 }
-            }
-            .onAppear {
-                selection.selectCollection(collection)
-                syncSelectionFromModel()
-            }
-            .onChange(of: selection.selectedNoteID) { _, newValue in
-                guard listSelection != newValue else { return }
-                listSelection = newValue
-            }
-            .onChange(of: listSelection) { _, newValue in
-                guard selection.selectedNoteID != newValue else { return }
-                Task { @MainActor in
-                    selection.selectedNoteID = newValue
+                .onChange(of: collection) { _, newCollection in
+                    selection.selectCollection(newCollection)
+                    
+                    Task {
+                        await libraryManager.loadNotes(
+                            libraryURL: libraryURL,
+                            collection: newCollection
+                        )
+                        prefetchInitialNotes()
+                    }
+                }
+                .onAppear {
+                    selection.selectCollection(collection)
+                    syncSelectionFromModel()
+                }
+                .onChange(of: selection.selectedNoteID) { _, newValue in
+                    guard listSelection != newValue else { return }
+                    listSelection = newValue
+                }
+                .onChange(of: listSelection) { _, newValue in
+                    guard selection.selectedNoteID != newValue else { return }
+                    Task { @MainActor in
+                        selection.selectedNoteID = newValue
+                    }
                 }
             }
 
@@ -93,7 +111,6 @@ struct NotesListView: View {
                         .ignoresSafeArea()
                 )
             }
-        }
     }
 
     private var listSelectionBinding: Binding<String?> {
@@ -128,6 +145,37 @@ struct NotesListView: View {
                     noteID: id
                 )
             }
+        }
+    }
+}
+
+struct NewNoteRow: View {
+    let action: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: "plus")
+                    .font(.system(size: 13, weight: .medium))
+
+                Text("New note")
+                    .font(.system(size: 14))
+                    .opacity(0.75)
+
+                Spacer()
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isHovering ? Color.primary.opacity(0.06) : .clear)
+        )
+        .onHover { hovering in
+            isHovering = hovering
         }
     }
 }

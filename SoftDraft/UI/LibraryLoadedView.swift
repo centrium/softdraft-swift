@@ -14,7 +14,6 @@ struct LibraryLoadedView: View {
     @EnvironmentObject private var selection: SelectionModel
     @EnvironmentObject private var libraryManager: LibraryManager
 
-    @State private var selectedCollection: String
     @State private var editorPrewarmed = false
     @State private var collectionSummaries: [String: CollectionLandingSummary] = [:]
 
@@ -25,12 +24,10 @@ struct LibraryLoadedView: View {
         let initialCollection =
             meta.lastActiveCollectionId?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        _selectedCollection = State(
-            initialValue: (initialCollection?.isEmpty == false)
-                ? initialCollection!
-                : "Inbox"
-        )
+    }
+    
+    private var selectedCollection: String {
+        selection.selectedCollectionID ?? "Inbox"
     }
 
     private var landingSummary: CollectionLandingSummary? {
@@ -42,8 +39,7 @@ struct LibraryLoadedView: View {
 
             // ───────── Sidebar ─────────
             CollectionsSidebar(
-                libraryURL: libraryURL,
-                selectedCollection: $selectedCollection
+                libraryURL: libraryURL
             )
             .navigationSplitViewColumnWidth(
                 min: 240,
@@ -77,22 +73,6 @@ struct LibraryLoadedView: View {
                  .animation(.easeOut(duration: 0.14), value: selection.selectedNoteID)
                }
              }
-        }
-        .onAppear {
-            selection.selectCollection(selectedCollection)
-        }
-        .onChange(of: selectedCollection) { oldValue, newValue in
-            guard oldValue != newValue else { return }
-
-            // Reset selection on collection change
-            selection.selectedNoteID = nil
-
-            Task {
-                await LibraryMetaStore.updateLastActiveCollection(
-                    libraryURL,
-                    collectionId: newValue
-                )
-            }
         }
         .onReceive(libraryManager.$visibleNotes) { notes in
             guard let activeCollection = libraryManager.visibleCollectionID else { return }
