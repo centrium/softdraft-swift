@@ -3,7 +3,6 @@
 //  SoftDraft
 //
 //  Created by Matt Adams on 20/01/2026.
-//
 
 import SwiftUI
 
@@ -13,19 +12,10 @@ struct LibraryLoadedView: View {
 
     @EnvironmentObject private var selection: SelectionModel
     @EnvironmentObject private var libraryManager: LibraryManager
+    @EnvironmentObject private var uiState: UIState
 
-    @State private var editorPrewarmed = false
     @State private var collectionSummaries: [String: CollectionLandingSummary] = [:]
 
-    init(libraryURL: URL) {
-        self.libraryURL = libraryURL
-
-        let meta = (try? LibraryMetaStore.load(libraryURL)) ?? LibraryMeta()
-        let initialCollection =
-            meta.lastActiveCollectionId?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-    
     private var selectedCollection: String {
         selection.selectedCollectionID ?? "Inbox"
     }
@@ -35,6 +25,36 @@ struct LibraryLoadedView: View {
     }
 
     var body: some View {
+        ZStack {
+
+            if uiState.isZenModeEnabled {
+                zenEditor
+                    .transition(
+                        .opacity
+                    )
+            } else {
+                normalLayout
+                    .transition(
+                        .opacity
+                    )
+            }
+
+        }
+        .animation(.easeInOut(duration: 0.22), value: uiState.isZenModeEnabled)
+    }
+}
+
+private extension LibraryLoadedView {
+
+    var zenEditor: some View {
+        PersistentEditorHost(noteID: selection.selectedNoteID)
+            .ignoresSafeArea()
+    }
+}
+
+private extension LibraryLoadedView {
+
+    var normalLayout: some View {
         NavigationSplitView {
 
             // ───────── Sidebar ─────────
@@ -57,22 +77,7 @@ struct LibraryLoadedView: View {
 
         } detail: {
 
-            ZStack {
-               // 1) Always-mounted editor (single instance for app session)
-               PersistentEditorHost(noteID: selection.selectedNoteID)
-                 .opacity(selection.selectedNoteID == nil ? 0 : 1)
-
-               // 2) Landing view overlays while no note is selected
-               if selection.selectedNoteID == nil {
-                 CollectionLandingView(
-                   collectionName: selectedCollection,
-                   summary: landingSummary
-                 )
-                 .opacity(selection.selectedNoteID == nil ? 1 : 0)
-                 .allowsHitTesting(selection.selectedNoteID == nil)
-                 .animation(.easeOut(duration: 0.14), value: selection.selectedNoteID)
-               }
-             }
+            editorStack
         }
         .onReceive(libraryManager.$visibleNotes) { notes in
             guard let activeCollection = libraryManager.visibleCollectionID else { return }
@@ -82,8 +87,33 @@ struct LibraryLoadedView: View {
             )
         }
     }
+}
 
-    private func makeSummary(
+private extension LibraryLoadedView {
+
+    var editorStack: some View {
+        ZStack {
+
+            // Editor (always mounted in normal mode)
+            PersistentEditorHost(noteID: selection.selectedNoteID)
+                .opacity(selection.selectedNoteID == nil ? 0 : 1)
+
+            // Landing view (never shown in Zen)
+            if selection.selectedNoteID == nil {
+                CollectionLandingView(
+                    collectionName: selectedCollection,
+                    summary: landingSummary
+                )
+                .allowsHitTesting(true)
+                .animation(.easeOut(duration: 0.14), value: selection.selectedNoteID)
+            }
+        }
+    }
+}
+
+private extension LibraryLoadedView {
+
+    func makeSummary(
         for collectionID: String,
         notes: [NoteSummary]
     ) -> CollectionLandingSummary {

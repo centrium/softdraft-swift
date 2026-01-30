@@ -13,6 +13,8 @@ enum LibraryFilesystemEvent: Equatable {
     case modified(noteID: String)
     case renamed(from: String, to: String)
     case deleted(noteID: String)
+    case collectionRenamed(from: String, to: String)
+    case collectionDeleted(collectionID: String)
 }
 
 final class LibraryFilesystemWatcher {
@@ -25,9 +27,16 @@ final class LibraryFilesystemWatcher {
         let fileIdentifier: UInt64?
     }
 
+    private struct CollectionSnapshotEntry {
+        let name: String
+        let fileIdentifier: UInt64?
+    }
+
     private struct Snapshot {
-        var entries: [String: SnapshotEntry] = [:]
-        var identifiers: [UInt64: SnapshotEntry] = [:]
+        var noteEntries: [String: SnapshotEntry] = [:]
+        var noteIdentifiers: [UInt64: SnapshotEntry] = [:]
+        var collectionEntries: [String: CollectionSnapshotEntry] = [:]
+        var collectionIdentifiers: [UInt64: CollectionSnapshotEntry] = [:]
 
         static var empty: Snapshot { Snapshot() }
     }
@@ -174,6 +183,8 @@ final class LibraryFilesystemWatcher {
 
         var entries: [String: SnapshotEntry] = [:]
         var identifierMap: [UInt64: SnapshotEntry] = [:]
+        var collectionEntries: [String: CollectionSnapshotEntry] = [:]
+        var collectionIdentifierMap: [UInt64: CollectionSnapshotEntry] = [:]
 
         while let url = enumerator?.nextObject() as? URL {
             guard url.pathExtension.lowercased() == "md" else { continue }
@@ -207,7 +218,53 @@ final class LibraryFilesystemWatcher {
             }
         }
 
-        return Snapshot(entries: entries, identifiers: identifierMap)
+        do {
+            let directories = try FileManager.default.contentsOfDirectory(
+                at: collectionsURL,
+                includingPropertiesForKeys: [
+                    .isDirectoryKey,
+                    .isHiddenKey,
+                    .fileResourceIdentifierKey
+                ],
+                options: [.skipsHiddenFiles]
+            )
+
+            for url in directories {
+                let values = try url.resourceValues(forKeys: [
+                    .isDirectoryKey,
+                    .isHiddenKey,
+                    .fileResourceIdentifierKey
+                ])
+
+                guard
+                    values.isDirectory == true,
+                    values.isHidden != true
+                else { continue }
+
+                let name = url.lastPathComponent
+                guard !name.isEmpty else { continue }
+
+                let identifier = values.fileResourceIdentifier.flatMap(Self.makeIdentifier)
+                let entry = CollectionSnapshotEntry(
+                    name: name,
+                    fileIdentifier: identifier
+                )
+
+                collectionEntries[name] = entry
+                if let identifier {
+                    collectionIdentifierMap[identifier] = entry
+                }
+            }
+        } catch {
+            // Ignore directory listing issues and fall back to note events
+        }
+
+        return Snapshot(
+            noteEntries: entries,
+            noteIdentifiers: identifierMap,
+            collectionEntries: collectionEntries,
+            collectionIdentifiers: collectionIdentifierMap
+        )
     }
 
     private func diffSnapshots(
@@ -218,21 +275,31 @@ final class LibraryFilesystemWatcher {
         var events: [LibraryFilesystemEvent] = []
         var consumedNewIDs = Set<String>()
 
-        for (noteID, newEntry) in new.entries {
-            if let oldEntry = old.entries[noteID],
+        // Handle collection renames/deletions first so selection updates precede note events
+        for (name, oldCollection) in old.collectionEntries where new.collectionEntries[name] == nil {
+            if let identifier = oldCollection.fileIdentifier,
+               let renamed = new.collectionIdentifiers[identifier] {
+                events.append(.collectionRenamed(from: name, to: renamed.name))
+            } else {
+                events.append(.collectionDeleted(collectionID: name))
+            }
+        }
+
+        for (noteID, newEntry) in new.noteEntries {
+            if let oldEntry = old.noteEntries[noteID],
                abs(newEntry.modifiedAt.timeIntervalSince(oldEntry.modifiedAt)) > 0.0005 {
                 events.append(.modified(noteID: noteID))
                 consumedNewIDs.insert(noteID)
-            } else if old.entries[noteID] != nil {
+            } else if old.noteEntries[noteID] != nil {
                 consumedNewIDs.insert(noteID)
             }
         }
 
         var consumedIdentifiers = Set<UInt64>()
 
-        for (noteID, oldEntry) in old.entries where new.entries[noteID] == nil {
+        for (noteID, oldEntry) in old.noteEntries where new.noteEntries[noteID] == nil {
             if let identifier = oldEntry.fileIdentifier,
-               let renamedEntry = new.identifiers[identifier] {
+               let renamedEntry = new.noteIdentifiers[identifier] {
                 events.append(.renamed(
                     from: noteID,
                     to: renamedEntry.noteID
@@ -244,7 +311,7 @@ final class LibraryFilesystemWatcher {
             }
         }
 
-        for (noteID, entry) in new.entries where !consumedNewIDs.contains(noteID) {
+        for (noteID, entry) in new.noteEntries where !consumedNewIDs.contains(noteID) {
             if let identifier = entry.fileIdentifier,
                consumedIdentifiers.contains(identifier) {
                 continue

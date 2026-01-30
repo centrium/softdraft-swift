@@ -219,6 +219,12 @@ final class LibraryManager: ObservableObject {
         case .deleted(let noteID):
             guard !shouldIgnore(noteID: noteID) else { return }
             handleDeletion(noteID: noteID)
+
+        case let .collectionRenamed(from, to):
+            handleCollectionRename(from: from, to: to, libraryURL: libraryURL)
+
+        case let .collectionDeleted(collectionID):
+            handleCollectionDeletion(collectionID, libraryURL: libraryURL)
         }
     }
     
@@ -647,6 +653,61 @@ final class LibraryManager: ObservableObject {
         }
     }
 
+    private func handleCollectionRename(
+        from: String,
+        to: String,
+        libraryURL: URL
+    ) {
+        guard from != to else { return }
+
+        Task { [weak self] in
+            guard let self else { return }
+            await self.reloadCollections(libraryURL: libraryURL)
+        }
+
+        if visibleCollectionID == from {
+            visibleCollectionID = to
+
+            Task { [weak self] in
+                guard let self else { return }
+                await self.loadNotes(
+                    libraryURL: libraryURL,
+                    collection: to
+                )
+            }
+        }
+
+        if selection?.selectedCollectionID == from {
+            selection?.selectedCollectionID = to
+        }
+    }
+
+    private func handleCollectionDeletion(
+        _ collectionID: String,
+        libraryURL: URL
+    ) {
+        let nextSelection = neighborCollection(afterRemoving: collectionID)
+
+        Task { [weak self] in
+            guard let self else { return }
+            await self.reloadCollections(libraryURL: libraryURL)
+        }
+
+        if visibleCollectionID == collectionID {
+            visibleCollectionID = nil
+            visibleNotes = []
+            selection?.selectedNoteID = nil
+        }
+
+        if selection?.selectedCollectionID == collectionID {
+            if let nextSelection {
+                selection?.selectCollection(nextSelection)
+            } else {
+                selection?.selectCollection(nil)
+            }
+        }
+    }
+
     private func upsert(_ summary: NoteSummary) {
         if let index = visibleNotes.firstIndex(where: { $0.id == summary.id }) {
             visibleNotes.remove(at: index)
@@ -702,6 +763,10 @@ final class LibraryManager: ObservableObject {
         }
     }
     
+    func canRenameCollection(_ id: String) -> Bool {
+        !mandatoryCollections.contains(id)
+    }
+    
     func collectionHasNotes(
         _ collectionID: String,
         libraryURL: URL
@@ -726,5 +791,9 @@ final class LibraryManager: ObservableObject {
                 try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
             }
         }
+    }
+    
+    func collectionID(for noteID: String) -> String {
+        noteID.split(separator: "/").first.map(String.init) ?? "Inbox"
     }
 }

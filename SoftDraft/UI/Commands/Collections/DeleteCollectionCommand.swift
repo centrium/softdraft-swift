@@ -19,7 +19,7 @@ let deleteCollectionCommand = AppCommand(
 
         return
             ctx.libraryURL != nil &&
-            !ctx.libraryManager.mandatoryCollections.contains(collectionID)
+            ctx.libraryManager.canRenameCollection(collectionID)
     },
     perform: { ctx in
         guard

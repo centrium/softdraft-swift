@@ -12,21 +12,26 @@ struct SoftdraftApp: App {
 
     @StateObject private var libraryManager: LibraryManager
     @StateObject private var selection: SelectionModel
+    @StateObject private var uiState: UIState
     @StateObject private var commandRegistry: CommandRegistry
 
     init() {
         let libraryManager = LibraryManager()
         let selection = SelectionModel()
+        let uiState = UIState()
+
         libraryManager.bind(selection: selection)
 
         _libraryManager = StateObject(wrappedValue: libraryManager)
         _selection = StateObject(wrappedValue: selection)
+        _uiState = StateObject(wrappedValue: uiState)
 
         _commandRegistry = StateObject(
             wrappedValue: CommandRegistry(
                 context: CommandContext(
                     libraryManager: libraryManager,
-                    selection: selection
+                    selection: selection,
+                    uiState: uiState
                 )
             )
         )
@@ -37,6 +42,7 @@ struct SoftdraftApp: App {
             RootView()
                 .environmentObject(libraryManager)
                 .environmentObject(selection)
+                .environmentObject(uiState)
                 .environmentObject(commandRegistry)
                 .task {
                     await libraryManager.resolveInitialLibrary()
@@ -45,7 +51,7 @@ struct SoftdraftApp: App {
         .commands {
             GlobalCommands(commandRegistry: commandRegistry)
             LibraryCommands(libraryManager: libraryManager)
-            
-        }.environmentObject(commandRegistry)
+        }
+        .environmentObject(commandRegistry)
     }
 }

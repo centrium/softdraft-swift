@@ -13,7 +13,7 @@ struct CommandContext {
 
     let libraryManager: LibraryManager
     let selection: SelectionModel
-
+    let uiState: UIState
     var libraryURL: URL? {
         libraryManager.currentLibraryURL
     }

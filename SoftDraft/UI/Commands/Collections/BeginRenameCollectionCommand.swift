@@ -12,12 +12,16 @@ let beginRenameCollectionCommand = AppCommand(
     title: "Rename Collection",
     shortcut: KeyboardShortcut("r", modifiers: [.command]),
     isEnabled: { ctx in
-        ctx.libraryURL != nil &&
-        ctx.selection.selectedCollectionID != nil &&
-        ctx.selection.pendingCollectionRename == nil
+        guard
+            let collectionID = ctx.selection.selectedCollectionID,
+            ctx.libraryURL != nil,
+            ctx.selection.pendingCollectionRename == nil
+        else { return false }
+
+        return ctx.libraryManager.canRenameCollection(collectionID)
     },
     perform: { ctx in
-        guard let id = ctx.selection.selectedCollectionID else { return }
-        ctx.selection.beginRenameCollection(id)
+        guard let collectionID = ctx.selection.selectedCollectionID else { return }
+        ctx.selection.beginRenameCollection(collectionID)
     }
 )

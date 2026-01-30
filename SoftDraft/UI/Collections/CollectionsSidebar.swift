@@ -72,13 +72,22 @@ struct CollectionsSidebar: View {
 
     @ViewBuilder
     private func rows(selectionEnabled: Bool) -> some View {
-        ForEach(libraryManager.visibleCollections, id: \.self) { name in
-            collectionRow(for: name)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .if(selectionEnabled) { view in
-                    view.tag(name) // only tag rows when selection is enabled
-                }
-        }
+        
+        Section {
+            ForEach(libraryManager.visibleCollections, id: \.self) { name in
+                collectionRow(for: name)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .if(selectionEnabled) { view in
+                        view.tag(name) // only tag rows when selection is enabled
+                    }
+            }
+         } header: {
+             Text("Collections")
+                 .font(.caption)
+                 .foregroundColor(.secondary)
+                 .textCase(.uppercase)
+                 .padding(.leading, 2)
+         }
     }
 
     @ViewBuilder
@@ -87,10 +96,22 @@ struct CollectionsSidebar: View {
             renameField
                 .onAppear { renameFieldFocused = true }
         } else {
-            Text(name)
+            HStack(spacing: 6) {
+                Image(systemName: "folder")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.secondary.opacity(0.7))
+                
+                Text(name)
+
+                if libraryManager.mandatoryCollections.contains(name) {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.secondary.opacity(0.7))
+                        .help("Inbox is a built-in collection and can’t be renamed or deleted.")
+                }
+            }
         }
     }
-
     private var renameField: some View {
         TextField("", text: $selection.collectionRenameDraft)
             .textFieldStyle(.plain)

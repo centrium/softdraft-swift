@@ -53,6 +53,7 @@ final class CommandRegistry: ObservableObject {
         register(confirmRenameCollectionCommand)
         register(cancelRenameCollectionCommand)
         register(deleteCollectionCommand)
+        register(toggleZenModeCommand)
         // others come later
     }
 

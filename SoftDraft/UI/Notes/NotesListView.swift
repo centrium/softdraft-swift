@@ -71,7 +71,7 @@ struct NotesListView: View {
                     }
                 }
                 .onAppear {
-                    selection.selectCollection(collection)
+                    //selection.selectCollection(collection)
                     syncSelectionFromModel()
                 }
                 .onChange(of: selection.selectedNoteID) { _, newValue in

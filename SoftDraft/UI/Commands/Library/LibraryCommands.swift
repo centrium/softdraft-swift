@@ -23,11 +23,18 @@ struct LibraryCommands: Commands {
             }
             .keyboardShortcut("n", modifiers: [.command])
             .disabled(!commandRegistry.canExecute("note.create"))
+            
             Button("New Collection") {
                 commandRegistry.run("collection.create")
             }
             .keyboardShortcut("n", modifiers: [.command, .shift])
             .disabled(!commandRegistry.canExecute("collection.create"))
+            
+            Button("Focus Mode") {
+                commandRegistry.run("view.toggleZenMode")
+            }
+            .keyboardShortcut("f", modifiers: [.command, .shift])
+            .disabled(!commandRegistry.canExecute("view.toggleZenMode"))
             
             Button("Open Library…") {
                 openLibrary()

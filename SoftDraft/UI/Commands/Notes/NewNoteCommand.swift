@@ -12,22 +12,22 @@ let createNoteCommand = AppCommand(
     title: "New Note",
     shortcut: KeyboardShortcut("n", modifiers: [.command]),
     isEnabled: { ctx in
-        ctx.libraryURL != nil &&
-        ctx.selection.selectedCollectionID != nil
+        ctx.libraryURL != nil
     },
     perform: { ctx in
-        guard
-            let libraryURL = ctx.libraryURL,
-            let collectionID = ctx.selection.selectedCollectionID
-        else { return }
+        guard let libraryURL = ctx.libraryURL else { return }
 
-        // Let LibraryManager decide filename + initial content
+        let collectionID =
+            ctx.selection.selectedNoteID
+                .flatMap { ctx.libraryManager.collectionID(for: $0) }
+            ?? ctx.selection.selectedCollectionID
+            ?? "Inbox"
+
         let noteID = await ctx.libraryManager.createNote(
             in: collectionID,
             libraryURL: libraryURL
         )
 
-        // Explicitly select the new note
         if let noteID {
             ctx.selection.selectNote(noteID)
         }
