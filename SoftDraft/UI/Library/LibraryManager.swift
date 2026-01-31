@@ -35,6 +35,8 @@ final class LibraryManager: ObservableObject {
     private var internalWriteDepth = 0
     private var recentInternalWrites: [String: Date] = [:]
     private let internalWriteCooldown: TimeInterval = 1.0
+    // Tracks whether we still need to restore the persisted selection for this library.
+    private var needsInitialCollectionSelection = false
 
     // MARK: - Startup
 
@@ -516,6 +518,8 @@ final class LibraryManager: ObservableObject {
     private func resetVisibleState() {
         visibleNotes = []
         visibleCollectionID = nil
+        needsInitialCollectionSelection = true
+        selection?.selectCollection(nil)
     }
 
     private func startWatcher(for url: URL) {
@@ -761,6 +765,67 @@ final class LibraryManager: ObservableObject {
         } catch {
             visibleCollections = []
         }
+
+        ensureCollectionSelection(libraryURL: libraryURL)
+    }
+
+    // Restores the last active collection (if available) and guarantees a valid fallback.
+    private func ensureCollectionSelection(libraryURL: URL) {
+        guard let selection else { return }
+
+        let available = visibleCollections
+
+        guard !available.isEmpty else {
+            selection.selectCollection(nil)
+            return
+        }
+
+        if let current = selection.selectedCollectionID,
+           available.contains(current) {
+            needsInitialCollectionSelection = false
+            return
+        }
+
+        if needsInitialCollectionSelection,
+           let restored = preferredInitialCollection(
+               libraryURL: libraryURL,
+               available: available
+           ) {
+            needsInitialCollectionSelection = false
+            selection.selectCollection(restored)
+            return
+        }
+
+        needsInitialCollectionSelection = false
+
+        if let fallback = fallbackCollection(from: available) {
+            selection.selectCollection(fallback)
+        } else {
+            selection.selectCollection(nil)
+        }
+    }
+
+    private func preferredInitialCollection(
+        libraryURL: URL,
+        available: [String]
+    ) -> String? {
+        guard
+            let meta = try? LibraryMetaStore.load(libraryURL),
+            let preferred = meta.lastActiveCollectionId,
+            available.contains(preferred)
+        else {
+            return nil
+        }
+
+        return preferred
+    }
+
+    private func fallbackCollection(from available: [String]) -> String? {
+        if let inbox = available.first(where: { $0 == "Inbox" }) {
+            return inbox
+        }
+
+        return available.first
     }
     
     func canRenameCollection(_ id: String) -> Bool {

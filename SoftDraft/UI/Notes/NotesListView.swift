@@ -28,61 +28,61 @@ struct NotesListView: View {
             // ─────────────────────────────
             // Main notes list
             // ─────────────────────────────
-                List(selection: listSelectionBinding) {
-                    if libraryManager.visibleNotes.isEmpty {
-                            HStack {
-                                Spacer()
-                                Button {
-                                    commandRegistry.run("note.create")
-                                } label: {
-                                    Label("New note", systemImage: "plus")
-                                        .font(.system(size: 14, weight: .medium))
-                                        .opacity(0.8)
-                                }
-                                .buttonStyle(.plain)
-                                Spacer()
-                            }
-                            .padding(.vertical, 12)
-                            .listRowSeparator(.hidden)
-                        } else {
-                            ForEach(libraryManager.visibleNotes, id: \.id) { note in
-                                NoteRow(note: note)
-                                    .tag(note.id)
-                            }
+            List(selection: listSelectionBinding) {
+                listTopSpacing
+
+                if libraryManager.visibleNotes.isEmpty {
+                    HStack {
+                        Spacer()
+                        Button {
+                            commandRegistry.run("note.create")
+                        } label: {
+                            Label("New note", systemImage: "plus")
+                                .font(.system(size: 14, weight: .medium))
+                                .opacity(0.8)
                         }
+                        .buttonStyle(.plain)
+                        Spacer()
+                    }
+                    .padding(.vertical, 12)
+                    .listRowSeparator(.hidden)
+                } else {
+                    ForEach(libraryManager.visibleNotes, id: \.id) { note in
+                        NoteRow(note: note)
+                            .tag(note.id)
+                    }
                 }
-                .navigationTitle(collection)
-                .task {
+            }
+            .navigationTitle(collection)
+            .task {
+                await libraryManager.loadNotes(
+                    libraryURL: libraryURL,
+                    collection: collection
+                )
+                prefetchInitialNotes()
+            }
+            .onChange(of: collection) { _, newCollection in
+                selection.selectCollection(newCollection)
+
+                Task {
                     await libraryManager.loadNotes(
                         libraryURL: libraryURL,
-                        collection: collection
+                        collection: newCollection
                     )
                     prefetchInitialNotes()
                 }
-                .onChange(of: collection) { _, newCollection in
-                    selection.selectCollection(newCollection)
-                    
-                    Task {
-                        await libraryManager.loadNotes(
-                            libraryURL: libraryURL,
-                            collection: newCollection
-                        )
-                        prefetchInitialNotes()
-                    }
-                }
-                .onAppear {
-                    //selection.selectCollection(collection)
-                    syncSelectionFromModel()
-                }
-                .onChange(of: selection.selectedNoteID) { _, newValue in
-                    guard listSelection != newValue else { return }
-                    listSelection = newValue
-                }
-                .onChange(of: listSelection) { _, newValue in
-                    guard selection.selectedNoteID != newValue else { return }
-                    Task { @MainActor in
-                        selection.selectedNoteID = newValue
-                    }
+            }
+            .onAppear {
+                syncSelectionFromModel()
+            }
+            .onChange(of: selection.selectedNoteID) { _, newValue in
+                guard listSelection != newValue else { return }
+                listSelection = newValue
+            }
+            .onChange(of: listSelection) { _, newValue in
+                guard selection.selectedNoteID != newValue else { return }
+                Task { @MainActor in
+                    selection.selectedNoteID = newValue
                 }
             }
 
@@ -111,6 +111,7 @@ struct NotesListView: View {
                         .ignoresSafeArea()
                 )
             }
+        }
     }
 
     private var listSelectionBinding: Binding<String?> {
@@ -146,6 +147,15 @@ struct NotesListView: View {
                 )
             }
         }
+    }
+
+    private var listTopSpacing: some View {
+        Color.clear
+            .frame(height: 6)
+            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+            .listRowSeparator(.hidden)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 

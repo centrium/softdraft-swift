@@ -26,56 +26,30 @@ struct LibraryLoadedView: View {
 
     var body: some View {
         ZStack {
-
-            if uiState.isZenModeEnabled {
-                zenEditor
-                    .transition(
-                        .opacity
-                    )
-            } else {
-                normalLayout
-                    .transition(
-                        .opacity
-                    )
-            }
-
+        normalLayout
+            .transition(
+                .opacity
+            )
         }
         .animation(.easeInOut(duration: 0.22), value: uiState.isZenModeEnabled)
     }
 }
 
-private extension LibraryLoadedView {
-
-    var zenEditor: some View {
-        PersistentEditorHost(noteID: selection.selectedNoteID)
-            .ignoresSafeArea()
-    }
-}
 
 private extension LibraryLoadedView {
 
     var normalLayout: some View {
         NavigationSplitView {
 
-            // ───────── Sidebar ─────────
-            CollectionsSidebar(
-                libraryURL: libraryURL
-            )
-            .navigationSplitViewColumnWidth(
-                min: 240,
-                ideal: 280,
-                max: 340
-            )
+            LibraryRailView(libraryURL: libraryURL)
+                    .navigationSplitViewColumnWidth(
+                        min: 280,
+                        ideal: 320,
+                        max: 360
+                    )
 
-        } content: {
-
-            // ───────── Notes list ─────────
-            NotesListView(
-                libraryURL: libraryURL,
-                collection: selectedCollection
-            )
-
-        } detail: {
+        }
+        detail: {
 
             editorStack
         }

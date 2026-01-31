@@ -5,11 +5,6 @@
 //  Created by Matt Adams on 21/01/2026.
 //
 
-//
-//  CollectionsSidebar.swift
-//  SoftDraft
-//
-
 import SwiftUI
 
 struct CollectionsSidebar: View {
@@ -20,21 +15,87 @@ struct CollectionsSidebar: View {
     @EnvironmentObject private var commandRegistry: CommandRegistry
 
     @State private var listSelection: String? = nil
+    @State private var showAllCollections = false
+
     @FocusState private var renameFieldFocused: Bool
     @FocusState private var sidebarFocused: Bool
 
+    private let collapsedLimit = 5
 
-    private var isRenaming: Bool { selection.pendingCollectionRename != nil }
+    private var isRenaming: Bool {
+        selection.pendingCollectionRename != nil
+    }
+    
+    private func syncSelectionFromModel() {
+        guard let selected = selection.selectedCollectionID else { return }
+
+        // Only update if List doesn't already match
+        if listSelection != selected {
+            listSelection = selected
+        }
+    }
+
+    // MARK: - Ordering
+
+    private var orderedCollections: [String] {
+        let all = libraryManager.visibleCollections
+
+        guard !all.isEmpty else { return [] }
+
+        var ordered: [String] = []
+        var seen: Set<String> = []
+
+        if all.contains("Inbox") {
+            ordered.append("Inbox")
+            seen.insert("Inbox")
+        }
+
+        if
+            let selected = selection.selectedCollectionID,
+            all.contains(selected),
+            !seen.contains(selected)
+        {
+            ordered.append(selected)
+            seen.insert(selected)
+        }
+
+        for name in all where !seen.contains(name) {
+            ordered.append(name)
+            seen.insert(name)
+        }
+
+        return ordered
+    }
+
+    private var visibleCollections: [String] {
+        let all = orderedCollections
+
+        if showAllCollections {
+            return all
+        }
+
+        var visible = Array(all.prefix(collapsedLimit))
+
+        if
+            let selected = selection.selectedCollectionID,
+            !visible.contains(selected),
+            all.contains(selected)
+        {
+            visible.append(selected)
+        }
+
+        return visible
+    }
+
+    // MARK: - View
 
     var body: some View {
         Group {
             if isRenaming {
-                // ✅ Non-selectable list while renaming
                 List {
                     rows(selectionEnabled: false)
                 }
             } else {
-                // ✅ Normal selectable list when not renaming
                 List(selection: $listSelection) {
                     rows(selectionEnabled: true)
                 }
@@ -43,9 +104,6 @@ struct CollectionsSidebar: View {
         .listStyle(.sidebar)
         .navigationTitle("Collections")
         .focused($sidebarFocused)
-        .onAppear {
-            listSelection = selection.selectedCollectionID
-        }
         .onChange(of: selection.selectedCollectionID) { _, newValue in
             guard listSelection != newValue else { return }
             listSelection = newValue
@@ -55,6 +113,15 @@ struct CollectionsSidebar: View {
             DispatchQueue.main.async {
                 selection.selectCollection(newValue)
             }
+        }
+        .onChange(of: libraryManager.visibleCollections) { _, _ in
+            // Re-apply selection once collections are available
+            DispatchQueue.main.async {
+                syncSelectionFromModel()
+            }
+        }
+        .onAppear {
+            syncSelectionFromModel()
         }
         .onKeyPress(.return) {
             guard
@@ -70,25 +137,52 @@ struct CollectionsSidebar: View {
         }
     }
 
+    // MARK: - Rows
+
     @ViewBuilder
     private func rows(selectionEnabled: Bool) -> some View {
-        
+
         Section {
-            ForEach(libraryManager.visibleCollections, id: \.self) { name in
+            ForEach(visibleCollections, id: \.self) { name in
                 collectionRow(for: name)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .listRowBackground(selectionBackground(for: name))
+                    .listRowInsets(
+                        EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
+                    )
                     .if(selectionEnabled) { view in
-                        view.tag(name) // only tag rows when selection is enabled
+                        view.tag(name)
                     }
             }
-         } header: {
-             Text("Collections")
-                 .font(.caption)
-                 .foregroundColor(.secondary)
-                 .textCase(.uppercase)
-                 .padding(.leading, 2)
-         }
+
+            // Show more / less row
+            if orderedCollections.count > collapsedLimit {
+                Button {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        showAllCollections.toggle()
+                    }
+                } label: {
+                    SidebarRow {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.secondary.opacity(0.7))
+
+                        Text(showAllCollections ? "Show less" : "Show more")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .listRowSeparator(.hidden)
+                .listRowInsets(
+                    EdgeInsets(top: 6, leading: 6, bottom: 10, trailing: 6)
+                )
+            }
+
+        }
     }
+
+    // MARK: - Collection Row
 
     @ViewBuilder
     private func collectionRow(for name: String) -> some View {
@@ -96,22 +190,46 @@ struct CollectionsSidebar: View {
             renameField
                 .onAppear { renameFieldFocused = true }
         } else {
-            HStack(spacing: 6) {
+            SidebarRow {
                 Image(systemName: "folder")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.secondary.opacity(0.7))
-                
+
                 Text(name)
+                    .font(.system(size: 14))
 
                 if libraryManager.mandatoryCollections.contains(name) {
                     Image(systemName: "lock.fill")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.secondary.opacity(0.7))
                         .help("Inbox is a built-in collection and can’t be renamed or deleted.")
                 }
             }
         }
     }
+
+    // MARK: - Selection Background
+
+    private func selectionBackground(for name: String) -> some View {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(
+                selection.selectedCollectionID == name
+                ? Color.primary.opacity(0.08)
+                : Color.clear
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(
+                        selection.selectedCollectionID == name
+                        ? Color.primary.opacity(0.12)
+                        : .clear,
+                        lineWidth: 0.5
+                    )
+            )
+    }
+
+    // MARK: - Rename Field
+
     private var renameField: some View {
         TextField("", text: $selection.collectionRenameDraft)
             .textFieldStyle(.plain)
@@ -120,20 +238,47 @@ struct CollectionsSidebar: View {
             .padding(.horizontal, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .overlay(
-                RoundedRectangle(cornerRadius: 5)
-                    .stroke(renameFieldFocused ? Color.accentColor : Color.secondary.opacity(0.35), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(
+                        renameFieldFocused
+                        ? Color.accentColor
+                        : Color.secondary.opacity(0.35),
+                        lineWidth: 1
+                    )
             )
             .contentShape(Rectangle())
-            .onTapGesture { renameFieldFocused = true } // click anywhere in the box focuses
+            .onTapGesture { renameFieldFocused = true }
             .onSubmit { commandRegistry.run("collection.rename.confirm") }
             .onExitCommand { commandRegistry.run("collection.rename.cancel") }
     }
 }
 
-// Small helper to conditionally apply a modifier without duplicating code
+// MARK: - Shared Sidebar Row
+
+struct SidebarRow<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            content
+            Spacer()
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 6)
+        .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Conditional Modifier Helper
+
 private extension View {
     @ViewBuilder
     func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
         if condition { transform(self) } else { self }
     }
 }
+
