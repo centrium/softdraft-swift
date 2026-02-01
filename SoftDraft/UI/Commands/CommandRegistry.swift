@@ -54,6 +54,7 @@ final class CommandRegistry: ObservableObject {
         register(cancelRenameCollectionCommand)
         register(deleteCollectionCommand)
         register(toggleZenModeCommand)
+        register(togglePreviewModeCommand)
         // others come later
     }
 

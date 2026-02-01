@@ -77,6 +77,11 @@ struct LibraryCommands: Commands {
             }
             .keyboardShortcut(.delete, modifiers: [.command])
             .disabled(!commandRegistry.canExecute("note.delete"))
+            Button("Preview Note") {
+                commandRegistry.run("view.togglePreviewMode")
+            }
+            .keyboardShortcut("p", modifiers: [.command, .shift])
+            .disabled(!commandRegistry.canExecute("view.togglePreviewMode"))
         }
     }
 

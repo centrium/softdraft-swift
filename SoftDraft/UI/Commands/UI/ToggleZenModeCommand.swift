@@ -16,8 +16,11 @@ let toggleZenModeCommand = AppCommand(
         ctx.selection.selectedNoteID != nil
     },
     perform: { ctx in
-        withAnimation{
-            ctx.uiState.isZenModeEnabled.toggle()
+        withAnimation(.easeInOut(duration: 0.25)) {
+            ctx.uiState.splitViewVisibility =
+                ctx.uiState.splitViewVisibility == .all
+                ? .detailOnly
+                : .all
         }
     }
 )

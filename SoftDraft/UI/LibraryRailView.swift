@@ -13,40 +13,72 @@ struct LibraryRailView: View {
 
     @EnvironmentObject private var selection: SelectionModel
     @EnvironmentObject private var libraryManager: LibraryManager
+    @EnvironmentObject private var uiState: UIState
+    @State private var searchText: String = ""
 
     private var selectedCollection: String {
         selection.selectedCollectionID ?? "Inbox"
     }
 
+    private let sidebarSlotHeight: CGFloat = 280
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
 
-            // ─────────────────────────────
-            // Collections section
-            // ─────────────────────────────
-
-            Text("COLLECTIONS")
-                .font(.caption)
-                .tracking(0.8)
-                .foregroundStyle(.secondary)
-                .padding(.top, 18)
+            // ───────── Search ─────────
+            TextField("Search", text: $searchText)
+                .textFieldStyle(.plain)
+                .padding(8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.primary.opacity(0.06))
+                )
+                .padding(.horizontal, 8)
+                .padding(.top, 6)
                 .padding(.bottom, 10)
-                .padding(.horizontal, 14)
 
-            CollectionsSidebar(
-                libraryURL: libraryURL
-            )
-            .padding(.horizontal, 6)
+            // ───────── Mode Slot (Collections / Tags) ─────────
+            VStack(alignment: .leading, spacing: 0) {
+
+                if uiState.sidebarMode == .collections {
+
+                    Text("COLLECTIONS")
+                        .font(.caption)
+                        .tracking(0.8)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 18)
+                        .padding(.bottom, 10)
+                        .padding(.horizontal, 14)
+
+                    CollectionsSidebar(libraryURL: libraryURL)
+                        .padding(.horizontal, 6)
+
+                } else {
+
+                    Text("TAGS")
+                        .font(.caption)
+                        .tracking(0.8)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 18)
+                        .padding(.bottom, 10)
+                        .padding(.horizontal, 14)
+
+                    Text("Tags coming soon")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 14)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .frame(minHeight: sidebarSlotHeight)
             .padding(.bottom, 18)
 
             Divider()
                 .padding(.horizontal, 12)
                 .padding(.bottom, 14)
 
-            // ─────────────────────────────
-            // Notes section
-            // ─────────────────────────────
-
+            // ───────── Notes (single source of truth) ─────────
             Text("Notes")
                 .font(.caption)
                 .tracking(0.6)
@@ -61,9 +93,9 @@ struct LibraryRailView: View {
             .padding(.horizontal, 6)
             .padding(.bottom, 16)
 
-            // Prevents the rail from feeling pinned
             Spacer(minLength: 12)
         }
         .frame(maxHeight: .infinity, alignment: .top)
     }
 }
+

@@ -7,6 +7,31 @@
 
 import SwiftUI
 
+private enum NotesSection: String, CaseIterable {
+    case today = "Today"
+    case yesterday = "Yesterday"
+    case thisWeek = "This Week"
+    case older = "Older"
+}
+
+private func section(for date: Date) -> NotesSection {
+    let calendar = Calendar.current
+
+    if calendar.isDateInToday(date) {
+        return .today
+    }
+
+    if calendar.isDateInYesterday(date) {
+        return .yesterday
+    }
+
+    if calendar.isDate(date, equalTo: Date(), toGranularity: .weekOfYear) {
+        return .thisWeek
+    }
+
+    return .older
+}
+
 struct NotesListView: View {
 
     let libraryURL: URL
@@ -20,6 +45,13 @@ struct NotesListView: View {
     
     private var collections: [String] {
         libraryManager.allCollections()
+    }
+    
+    private var groupedNotes: [NotesSection: [NoteSummary]] {
+        Dictionary(
+            grouping: libraryManager.visibleNotes,
+            by: { section(for: $0.modifiedAt) }
+        )
     }
     
     var body: some View {
@@ -47,9 +79,35 @@ struct NotesListView: View {
                     .padding(.vertical, 12)
                     .listRowSeparator(.hidden)
                 } else {
-                    ForEach(libraryManager.visibleNotes, id: \.id) { note in
-                        NoteRow(note: note)
-                            .tag(note.id)
+                    ForEach(NotesSection.allCases, id: \.self) { section in
+                        if let notes = groupedNotes[section], !notes.isEmpty {
+
+                            Section {
+                                ForEach(notes, id: \.id) { note in
+                                    NoteRow(note: note)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .frame(minHeight: 44) // keeps selection stable
+                                        .listRowBackground(
+                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                .fill(
+                                                    selection.selectedNoteID == note.id
+                                                    ? Color.primary.opacity(0.08)
+                                                    : Color.clear
+                                                )
+                                        )
+                                        .listRowInsets(
+                                            EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
+                                        )
+                                        .tag(note.id)
+                                }
+                            } header: {
+                                Text(section.rawValue)
+                                    .font(.caption)
+                                    .tracking(0.6)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.leading, 2)
+                            }
+                        }
                     }
                 }
             }

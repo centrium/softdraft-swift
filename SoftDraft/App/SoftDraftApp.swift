@@ -47,6 +47,7 @@ struct SoftdraftApp: App {
                 .task {
                     await libraryManager.resolveInitialLibrary()
                 }
+                
         }
         .commands {
             GlobalCommands(commandRegistry: commandRegistry)
