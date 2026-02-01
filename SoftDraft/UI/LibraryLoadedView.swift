@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 struct LibraryLoadedView: View {
 
@@ -163,26 +164,9 @@ private extension LibraryLoadedView {
 // MARK: - Preview Stack (mock)
 
 private extension LibraryLoadedView {
-
+    
     var previewStack: some View {
-        VStack {
-            Spacer()
-
-            Text("Preview Mode")
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(.secondary)
-
-            Text("Rendered content will appear here")
-                .font(.system(size: 14))
-                .foregroundStyle(.secondary.opacity(0.8))
-                .padding(.top, 6)
-
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            Color.primary.opacity(0.04)
-        )
+        NotePreviewSurface(text: libraryManager.currentNoteText)
     }
 }
 

@@ -41,6 +41,7 @@ struct PersistentEditorHost: View {
                 let id = currentNoteID
             else { return }
 
+            libraryManager.currentNoteText = newValue
             hasPendingEdits = true
 
             autosave.schedule {
@@ -57,6 +58,7 @@ struct PersistentEditorHost: View {
             guard let id = noteID else {
                 autosave.cancel()
                 text = ""
+                libraryManager.currentNoteText = ""
                 isLoading = false
                 isApplyingLoadedText = false
                 hasPendingEdits = false
@@ -97,6 +99,7 @@ struct PersistentEditorHost: View {
         guard let libraryURL = libraryManager.activeLibraryURL else {
             await MainActor.run {
                 text = ""
+                libraryManager.currentNoteText = ""
                 hasPendingEdits = false
                 observedExternalToken = nil
             }
@@ -117,6 +120,7 @@ struct PersistentEditorHost: View {
 
         await MainActor.run {
             text = loaded
+            libraryManager.currentNoteText = loaded
             hasPendingEdits = false
             observedExternalToken = libraryManager.externalChangeTokens[noteID]
         }

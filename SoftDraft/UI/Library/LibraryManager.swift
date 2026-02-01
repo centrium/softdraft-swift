@@ -27,6 +27,8 @@ final class LibraryManager: ObservableObject {
     @Published private(set) var visibleCollectionID: String?
     @Published private(set) var externalChangeTokens: [String: UUID] = [:]
     @Published private(set) var visibleCollections: [String] = []
+    @Published var currentNoteText: String = ""
+    
     private var cancellables: Set<AnyCancellable> = []
     let mandatoryCollections: Set<String> = ["Inbox"]
 
@@ -518,6 +520,7 @@ final class LibraryManager: ObservableObject {
     private func resetVisibleState() {
         visibleNotes = []
         visibleCollectionID = nil
+        currentNoteText = ""
         needsInitialCollectionSelection = true
         selection?.selectCollection(nil)
     }
