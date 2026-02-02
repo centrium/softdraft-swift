@@ -9,6 +9,7 @@ struct NotePreviewSurface: View {
 
     private static let placeholderBody = "<p>Start typing to see the preview.</p>"
     private let debounceDelay: UInt64 = 140_000_000 // ~140ms
+    private let parser = MarkdownASTParser()
 
     var body: some View {
         ZStack {
@@ -56,17 +57,20 @@ struct NotePreviewSurface: View {
             return Self.placeholderBody
         }
 
-        let escaped = escapeHTML(text)
+        let document = parser.parse(text)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
-        // Collapses double newlines into paragraphs while preserving any
-        // single newlines within a paragraph as soft breaks.
-        return escaped
-            .components(separatedBy: "\n\n")
-            .map { component in
-                let body = component.replacingOccurrences(of: "\n", with: "<br />")
-                return "<p>\(body)</p>"
-            }
-            .joined()
+        let jsonString: String
+        if let data = try? encoder.encode(document),
+           let decoded = String(data: data, encoding: .utf8) {
+            jsonString = decoded
+        } else {
+            jsonString = "{\n  \"error\": \"Unable to encode AST\"\n}"
+        }
+
+        let escaped = escapeHTML(jsonString)
+        return "<pre style=\"font-family: -apple-system-monospaced; white-space: pre-wrap;\">\(escaped)</pre>"
     }
 
     private func escapeHTML(_ value: String) -> String {
@@ -74,5 +78,6 @@ struct NotePreviewSurface: View {
             .replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
     }
 }
