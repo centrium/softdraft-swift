@@ -17,9 +17,14 @@ struct NotePreviewSurface: View {
                 .ignoresSafeArea()
             
             ScrollView {
-                renderedView
-                    .padding(24)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack {
+                    Spacer(minLength: 0)
+                    renderedView
+                        .frame(maxWidth: 720, alignment: .leading)
+                        .padding(24)
+                    Spacer(minLength: 0)
+                }
+                .padding(.vertical, 32)
             }
         }
         .onAppear {

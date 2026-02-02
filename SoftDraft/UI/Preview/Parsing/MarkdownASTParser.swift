@@ -653,6 +653,19 @@ private struct InlineParser {
                     buffer.append(char)
                     advance()
                 }
+            case "~":
+                if peekNext() == "~" {
+                    flushBuffer()
+                    if let strike = parseStrikethrough() {
+                        nodes.append(strike)
+                    } else {
+                        buffer.append("~")
+                        advance()
+                    }
+                } else {
+                    buffer.append("~")
+                    advance()
+                }
             case "=":
                 if peekNext() == "=" {
                     flushBuffer()
@@ -735,6 +748,24 @@ private struct InlineParser {
 
         index = closingRange.upperBound
         return .highlight(children)
+    }
+
+    private mutating func parseStrikethrough() -> MarkdownInline? {
+        let start = index
+        guard consume("~~") else { return nil }
+        guard let closing = findClosing(delimiter: "~~") else {
+            index = start
+            return nil
+        }
+        let content = String(text[index..<closing.lowerBound])
+        guard !content.isEmpty else {
+            index = start
+            return nil
+        }
+        var nested = InlineParser(text: content)
+        let children = nested.parse()
+        index = closing.upperBound
+        return .strikethrough(children)
     }
 
     private mutating func parseEmphasis(delimiter: Character) -> MarkdownInline? {

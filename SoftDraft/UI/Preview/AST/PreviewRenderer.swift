@@ -113,10 +113,30 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
             var result = renderInlineGroup(children)
             result.font = .system(.body).bold()
             return result
+        
+        case .highlight(let children):
+            var result = renderInlineGroup(children)
+
+            // Subtle, adaptive highlight
+            result.backgroundColor = .yellow.opacity(0.35)
+
+            return result
 
         case .inlineCode(let code):
-            var result = AttributedString(code)
+            var result = AttributedString(" \(code) ")
+
+            // Monospaced font
             result.font = .system(.body, design: .monospaced)
+
+            // Adaptive colours (light & dark safe)
+            result.foregroundColor = .secondary
+            result.backgroundColor = .secondary.opacity(0.2)
+
+            return result
+        
+        case .strikethrough(let children):
+            var result = renderInlineGroup(children)
+            result.strikethroughStyle = .single
             return result
 
         default:

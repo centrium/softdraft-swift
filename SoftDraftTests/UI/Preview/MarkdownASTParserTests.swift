@@ -118,6 +118,34 @@ final class MarkdownASTParserTests: XCTestCase {
         XCTAssertEqual(concatenatedText(inlines), source)
     }
 
+    func testStrikethroughProducesInlineNode() {
+        let source = "This ~~very *important*~~ text"
+        let document = parser.parse(source)
+        guard let block = rootBlocks(in: document).first,
+              case .paragraph(let inlines) = block else {
+            return XCTFail("Expected paragraph block")
+        }
+
+        XCTAssertEqual(inlines.count, 3)
+        guard case .text("This ") = inlines[0] else {
+            return XCTFail("Expected leading text segment")
+        }
+        guard case .strikethrough(let children) = inlines[1] else {
+            return XCTFail("Expected middle strikethrough inline")
+        }
+        XCTAssertEqual(children.count, 2)
+        guard case .text("very ") = children[0] else {
+            return XCTFail("Expected nested text in strikethrough")
+        }
+        guard case .emphasis(let emphasisChildren) = children[1] else {
+            return XCTFail("Expected emphasis inside strikethrough")
+        }
+        XCTAssertEqual(emphasisChildren, [.text("important")])
+        guard case .text(" text") = inlines[2] else {
+            return XCTFail("Expected trailing text segment")
+        }
+    }
+
     func testTaskItemsProduceDedicatedNodes() {
         let source = """
         - [ ] Todo **one**

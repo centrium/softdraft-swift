@@ -74,6 +74,7 @@ enum MarkdownInline: Equatable {
     case image(MarkdownImage)
     case mathInline(String)
     case highlight([MarkdownInline])
+    case strikethrough([MarkdownInline])
 }
 
 extension MarkdownListEntry: Codable {
@@ -277,6 +278,7 @@ extension MarkdownInline: Codable {
         case image
         case mathInline
         case highlight
+        case strikethrough
     }
 
     func encode(to encoder: Encoder) throws {
@@ -307,6 +309,9 @@ extension MarkdownInline: Codable {
             try container.encode(source, forKey: .source)
         case .highlight(let children):
             try container.encode(InlineType.highlight, forKey: .type)
+            try container.encode(children, forKey: .children)
+        case .strikethrough(let children):
+            try container.encode(InlineType.strikethrough, forKey: .type)
             try container.encode(children, forKey: .children)
         }
     }
@@ -341,6 +346,9 @@ extension MarkdownInline: Codable {
         case .highlight:
             let children = try container.decode([MarkdownInline].self, forKey: .children)
             self = .highlight(children)
+        case .strikethrough:
+            let children = try container.decode([MarkdownInline].self, forKey: .children)
+            self = .strikethrough(children)
         }
     }
 }

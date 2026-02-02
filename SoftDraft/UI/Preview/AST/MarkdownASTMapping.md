@@ -20,6 +20,7 @@
 | Inline strong `**`/`__` | `MarkdownInline.strong` |
 | Inline code `` `code` `` | `MarkdownInline.inlineCode` |
 | Inline highlight `==text==` | `MarkdownInline.highlight([MarkdownInline])` |
+| Inline strikethrough `~~text~~` | `MarkdownInline.strikethrough([MarkdownInline])` |
 | Mermaid blocks ```mermaid``` | `MarkdownBlock.mermaidBlock(source:)` |
 | Block math `$$ ... $$` or ```math``` | `MarkdownBlock.mathBlock(source:)` |
 | Inline math `$...$` | `MarkdownInline.mathInline(String)` |
