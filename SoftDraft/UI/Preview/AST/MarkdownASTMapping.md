@@ -25,4 +25,4 @@
 | Block math `$$ ... $$` or ```math``` | `MarkdownBlock.mathBlock(source:)` |
 | Inline math `$...$` | `MarkdownInline.mathInline(String)` |
 
-Bare URLs are left as `.text` nodes on purpose; the parser does not auto-link outside of explicit Markdown link syntax. Malformed or partial math delimiters also remain `.text` so the editor never emits half-finished math nodes.
+Bare `http://` or `https://` URLs in plain text are parsed into `.link` nodes so previews can style them consistently. Malformed or partial math delimiters still remain `.text` so the editor never emits half-finished math nodes.

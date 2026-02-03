@@ -118,6 +118,107 @@ final class MarkdownASTParserTests: XCTestCase {
         XCTAssertEqual(concatenatedText(inlines), source)
     }
 
+    func testAutolinkStandaloneURL() {
+        let source = "http://example.com"
+        let document = parser.parse(source)
+        guard let block = rootBlocks(in: document).first,
+              case .paragraph(let inlines) = block else {
+            return XCTFail("Expected paragraph block")
+        }
+
+        XCTAssertEqual(inlines.count, 1)
+        guard case .link(let link) = inlines.first else {
+            return XCTFail("Expected autolink inline")
+        }
+        XCTAssertEqual(link.destination, "http://example.com")
+        XCTAssertEqual(link.title, nil)
+        XCTAssertEqual(link.children, [.text("http://example.com")])
+    }
+
+    func testAutolinkInSentence() {
+        let source = "See http://example.com for details"
+        let document = parser.parse(source)
+        guard let block = rootBlocks(in: document).first,
+              case .paragraph(let inlines) = block else {
+            return XCTFail("Expected paragraph block")
+        }
+
+        XCTAssertEqual(inlines.count, 3)
+        guard case .text("See ") = inlines[0] else {
+            return XCTFail("Expected leading text inline")
+        }
+        guard case .link(let link) = inlines[1] else {
+            return XCTFail("Expected middle autolink inline")
+        }
+        XCTAssertEqual(link.destination, "http://example.com")
+        XCTAssertEqual(link.children, [.text("http://example.com")])
+        guard case .text(" for details") = inlines[2] else {
+            return XCTFail("Expected trailing text inline")
+        }
+    }
+
+    func testAutolinkMultipleLinks() {
+        let source = "Links http://a.com and https://b.com"
+        let document = parser.parse(source)
+        guard let block = rootBlocks(in: document).first,
+              case .paragraph(let inlines) = block else {
+            return XCTFail("Expected paragraph block")
+        }
+
+        XCTAssertEqual(inlines.count, 4)
+        guard case .text("Links ") = inlines[0] else {
+            return XCTFail("Expected leading text inline")
+        }
+        guard case .link(let firstLink) = inlines[1] else {
+            return XCTFail("Expected first autolink inline")
+        }
+        XCTAssertEqual(firstLink.destination, "http://a.com")
+        guard case .text(" and ") = inlines[2] else {
+            return XCTFail("Expected separator text inline")
+        }
+        guard case .link(let secondLink) = inlines[3] else {
+            return XCTFail("Expected second autolink inline")
+        }
+        XCTAssertEqual(secondLink.destination, "https://b.com")
+    }
+
+    func testAutolinkTrimsTrailingPunctuation() {
+        let source = "Visit http://example.com."
+        let document = parser.parse(source)
+        guard let block = rootBlocks(in: document).first,
+              case .paragraph(let inlines) = block else {
+            return XCTFail("Expected paragraph block")
+        }
+
+        XCTAssertEqual(inlines.count, 3)
+        guard case .text("Visit ") = inlines[0] else {
+            return XCTFail("Expected prefix text inline")
+        }
+        guard case .link(let link) = inlines[1] else {
+            return XCTFail("Expected trimmed autolink inline")
+        }
+        XCTAssertEqual(link.destination, "http://example.com")
+        guard case .text(".") = inlines[2] else {
+            return XCTFail("Expected trailing punctuation inline")
+        }
+    }
+
+    func testAutolinkIgnoredInsideLinkLabel() {
+        let source = "[http://example.com](https://dest.com)"
+        let document = parser.parse(source)
+        guard let block = rootBlocks(in: document).first,
+              case .paragraph(let inlines) = block else {
+            return XCTFail("Expected paragraph block")
+        }
+
+        XCTAssertEqual(inlines.count, 1)
+        guard case .link(let link) = inlines.first else {
+            return XCTFail("Expected parsed link inline")
+        }
+        XCTAssertEqual(link.destination, "https://dest.com")
+        XCTAssertEqual(link.children, [.text("http://example.com")])
+    }
+
     func testStrikethroughProducesInlineNode() {
         let source = "This ~~very *important*~~ text"
         let document = parser.parse(source)
@@ -382,14 +483,24 @@ final class MarkdownASTParserTests: XCTestCase {
         XCTAssertEqual(inlines, [.text("*broken _markdown")])
     }
 
-    func testBareURLRemainsPlainText() {
+    func testBareURLAutoLinksInParagraph() {
         let source = "Visit https://example.com for details"
         let document = parser.parse(source)
         guard let first = rootBlocks(in: document).first,
               case .paragraph(let inlines) = first else {
             return XCTFail("Expected paragraph")
         }
-        XCTAssertEqual(inlines, [.text("Visit https://example.com for details")])
+        XCTAssertEqual(inlines.count, 3)
+        guard case .text("Visit ") = inlines[0] else {
+            return XCTFail("Expected leading text inline")
+        }
+        guard case .link(let link) = inlines[1] else {
+            return XCTFail("Expected autolink inline")
+        }
+        XCTAssertEqual(link.destination, "https://example.com")
+        guard case .text(" for details") = inlines[2] else {
+            return XCTFail("Expected trailing text inline")
+        }
     }
 
     private func rootBlocks(in document: MarkdownDocument) -> [MarkdownBlock] {

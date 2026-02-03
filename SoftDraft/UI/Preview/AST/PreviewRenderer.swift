@@ -139,6 +139,20 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
             result.strikethroughStyle = .single
             return result
 
+        case .link(let link):
+            // Render the link label from its inline children
+            var result = renderInlineGroup(link.children)
+
+            // System-handled external link
+            if let url = URL(string: link.destination) {
+                result.link = url
+            }
+
+            // Calm, adaptive styling
+            result.foregroundColor = Color.accentColor
+            result.underlineStyle = Text.LineStyle.single
+
+            return result
         default:
             return AttributedString("[inline]")
         }

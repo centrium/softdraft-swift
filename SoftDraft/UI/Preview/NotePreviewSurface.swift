@@ -20,7 +20,7 @@ struct NotePreviewSurface: View {
                 HStack {
                     Spacer(minLength: 0)
                     renderedView
-                        .frame(maxWidth: 720, alignment: .leading)
+                        .frame(maxWidth: 680, alignment: .leading)
                         .padding(24)
                     Spacer(minLength: 0)
                 }

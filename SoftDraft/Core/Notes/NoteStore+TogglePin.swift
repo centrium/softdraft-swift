@@ -32,8 +32,8 @@ extension NoteStore {
         let isPinned = meta.pinned[noteID] == true
         let nextPinned = !isPinned
 
-        // 2️⃣ Persist pin toggle asynchronously (non-blocking)
-        Task {
+        // 2️⃣ Persist pin toggle synchronously so observers see immediate state
+        do {
             var nextMeta = meta
 
             if nextPinned {
@@ -42,7 +42,9 @@ extension NoteStore {
                 nextMeta.pinned.removeValue(forKey: noteID)
             }
 
-            await LibraryMetaStore.save(nextMeta, to: libraryURL)
+            try LibraryMetaStore.saveSync(nextMeta, to: libraryURL)
+        } catch {
+            assertionFailure("Failed to toggle pin in metadata: \(error)")
         }
 
         // 3️⃣ Rebuild summary synchronously (authoritative for UI)

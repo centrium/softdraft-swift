@@ -37,6 +37,12 @@ enum LibraryMetaStore {
         }
     }
 
+    static func saveSync(_ meta: LibraryMeta, to libraryURL: URL) throws {
+        let url = metaURL(for: libraryURL)
+        let data = try JSONEncoder().encode(meta)
+        try data.write(to: url, options: [.atomic])
+    }
+
     // Convenience: update only lastActiveCollection
     static func updateLastActiveCollection(
         _ libraryURL: URL,

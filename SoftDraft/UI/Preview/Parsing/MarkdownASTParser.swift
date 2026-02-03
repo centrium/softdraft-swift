@@ -302,11 +302,22 @@ private struct BlockParser {
         var content: [String] = [line]
         index += 1
 
+        let firstLineIsPipe = line.trimmed().hasPrefix("|")
+        let shouldIsolatePipeLine: Bool
+        if firstLineIsPipe, index < lines.count {
+            shouldIsolatePipeLine = lines[index].trimmed().hasPrefix("|")
+        } else {
+            shouldIsolatePipeLine = false
+        }
+
         while !isAtEnd {
             let next = lines[index]
             let trimmed = next.trimmed()
             if trimmed.isEmpty {
                 index += 1
+                break
+            }
+            if shouldIsolatePipeLine {
                 break
             }
             if startsNewBlock(next) {
@@ -574,10 +585,12 @@ private extension String {
 
 private struct InlineParser {
     let text: String
+    private let enableAutolinks: Bool
     private var index: String.Index
 
-    init(text: String) {
+    init(text: String, enableAutolinks: Bool = true) {
         self.text = text
+        self.enableAutolinks = enableAutolinks
         self.index = text.startIndex
     }
 
@@ -599,6 +612,12 @@ private struct InlineParser {
             let char = text[index]
             if let terminator, char == terminator {
                 break
+            }
+
+            if enableAutolinks, let autolink = parseAutolinkIfNeeded(current: char) {
+                flushBuffer()
+                nodes.append(autolink)
+                continue
             }
 
             switch char {
@@ -686,7 +705,7 @@ private struct InlineParser {
         }
 
         flushBuffer()
-        return nodes
+        return mergeAdjacentText(nodes)
     }
 
     private mutating func parseInlineCode() -> String? {
@@ -811,7 +830,7 @@ private struct InlineParser {
             let alt = label.isEmpty ? nil : label
             return .image(MarkdownImage(source: destination, alt: alt))
         } else {
-            var nested = InlineParser(text: label)
+            var nested = InlineParser(text: label, enableAutolinks: false)
             let children = nested.parse()
             return .link(MarkdownLink(destination: destination, title: title, children: children))
         }
@@ -902,11 +921,42 @@ private struct InlineParser {
     }
 
     private mutating func findClosing(delimiter: String) -> Range<String.Index>? {
+        guard let first = delimiter.first else { return nil }
+        let length = delimiter.count
         var search = index
-        while search < text.endIndex {
-            if text[search...].hasPrefix(delimiter) {
-                return search..<text.index(search, offsetBy: delimiter.count)
+
+        func advancePastRun(from start: String.Index) -> String.Index {
+            var cursor = start
+            while cursor < text.endIndex && text[cursor] == first {
+                cursor = text.index(after: cursor)
             }
+            return cursor
+        }
+
+        while search < text.endIndex {
+            if text[search] == first {
+                var cursor = search
+                var matched = 0
+                while cursor < text.endIndex && text[cursor] == first && matched < length {
+                    matched += 1
+                    cursor = text.index(after: cursor)
+                }
+
+                if matched == length {
+                    if length == 1 {
+                        let runEnd = advancePastRun(from: search)
+                        if runEnd > cursor {
+                            search = runEnd
+                            continue
+                        }
+                    }
+                    return search..<cursor
+                }
+
+                search = advancePastRun(from: search)
+                continue
+            }
+
             if text[search] == "\\" {
                 search = text.index(after: search)
                 if search < text.endIndex {
@@ -914,6 +964,7 @@ private struct InlineParser {
                 }
                 continue
             }
+
             search = text.index(after: search)
         }
         return nil
@@ -936,4 +987,93 @@ private struct InlineParser {
         guard index < text.endIndex else { return }
         index = text.index(after: index)
     }
+
+    private func mergeAdjacentText(_ nodes: [MarkdownInline]) -> [MarkdownInline] {
+        guard !nodes.isEmpty else { return nodes }
+        var merged: [MarkdownInline] = []
+        merged.reserveCapacity(nodes.count)
+
+        for node in nodes {
+            if case .text(let value) = node,
+               case .text(let existing)? = merged.last {
+                merged[merged.count - 1] = .text(existing + value)
+            } else {
+                merged.append(node)
+            }
+        }
+
+        return merged
+    }
+
+    private mutating func parseAutolinkIfNeeded(current: Character) -> MarkdownInline? {
+        guard current == "h" else { return nil }
+        guard let prefixLength = InlineParser.autolinkPrefixLength(at: index, in: text) else { return nil }
+        guard InlineParser.isAutolinkBoundary(before: index, in: text) else { return nil }
+
+        var end = text.index(index, offsetBy: prefixLength)
+        while end < text.endIndex {
+            let char = text[end]
+            if char.isWhitespace || char.isNewline || InlineParser.hardStopCharacters.contains(char) {
+                break
+            }
+            end = text.index(after: end)
+        }
+
+        let candidate = index..<end
+        guard let trimmed = InlineParser.trimTrailingPunctuation(in: text, range: candidate) else {
+            return nil
+        }
+
+        let url = String(text[trimmed])
+        guard !url.isEmpty else { return nil }
+
+        index = trimmed.upperBound
+        let link = MarkdownLink(destination: url, title: nil, children: [.text(url)])
+        return .link(link)
+    }
+
+    private static func autolinkPrefixLength(at index: String.Index, in text: String) -> Int? {
+        for prefix in autolinkPrefixes {
+            if text[index...].hasPrefix(prefix) {
+                return prefix.count
+            }
+        }
+        return nil
+    }
+
+    private static func isAutolinkBoundary(before index: String.Index, in text: String) -> Bool {
+        guard index > text.startIndex else { return true }
+        let previous = text[text.index(before: index)]
+        if previous.isLetter || previous.isNumber || previous == "_" || previous == "/" {
+            return false
+        }
+        return true
+    }
+
+    private static func trimTrailingPunctuation(in text: String, range: Range<String.Index>) -> Range<String.Index>? {
+        var end = range.upperBound
+        let start = range.lowerBound
+
+        while end > start {
+            let previousIndex = text.index(before: end)
+            let character = text[previousIndex]
+            if trailingDelimiters.contains(character) {
+                if character == ")" {
+                    let segment = text[start..<previousIndex]
+                    if segment.contains("(") {
+                        break
+                    }
+                }
+                end = previousIndex
+                continue
+            }
+            break
+        }
+
+        return start < end ? start..<end : nil
+    }
+
+    private static let autolinkPrefixes = ["http://", "https://"]
+    private static let hardStopCharacters: Set<Character> = ["<", ">", "\"", "'"]
+    private static let trailingDelimiters: Set<Character> = [".", ",", ";", ":", "!", "?", ")", "]", "}"]
 }
