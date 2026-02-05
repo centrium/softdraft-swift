@@ -117,9 +117,16 @@ private extension LibraryLoadedView {
 
             // ───────── Editor (always mounted) ─────────
             editorStack
-                .allowsHitTesting(!uiState.isPreviewModeEnabled)
-                .opacity(uiState.isPreviewModeEnabled ? 0 : 1)
-                .animation(.easeInOut(duration: 0.25), value: uiState.isPreviewModeEnabled)
+                .allowsHitTesting(
+                    !(uiState.isPreviewModeEnabled && selection.selectedNoteID != nil)
+                )
+                .opacity(
+                    uiState.isPreviewModeEnabled && selection.selectedNoteID != nil
+                    ? 0
+                    : 1
+                )
+                .animation(.easeInOut(duration: 0.25),
+                           value: uiState.isPreviewModeEnabled)
 
             // ───────── Preview overlay ─────────
             previewStack

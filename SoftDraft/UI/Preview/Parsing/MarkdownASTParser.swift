@@ -58,30 +58,39 @@ private struct BlockParser {
     private mutating func parseMathBlock() -> MarkdownBlock? {
         guard let line = currentLine else { return nil }
         let trimmed = line.trimmed()
-        guard trimmed == "$$" else { return nil }
 
-        let startIndex = index
-        var cursor = index + 1
-        var body: [String] = []
-        var closingIndex: Int? = nil
+        if trimmed == "$$" {
+            let startIndex = index
+            var cursor = index + 1
+            var body: [String] = []
+            var closingIndex: Int? = nil
 
-        while cursor < lines.count {
-            let candidate = lines[cursor]
-            if candidate.trimmed() == "$$" {
-                closingIndex = cursor
-                break
+            while cursor < lines.count {
+                let candidate = lines[cursor]
+                if candidate.trimmed() == "$$" {
+                    closingIndex = cursor
+                    break
+                }
+                body.append(candidate)
+                cursor += 1
             }
-            body.append(candidate)
-            cursor += 1
+
+            guard let closing = closingIndex else {
+                index = startIndex
+                return nil
+            }
+
+            index = closing + 1
+            let payload = body.joined(separator: "\n")
+            return .mathBlock(source: trimmedMathSource(payload))
         }
 
-        guard let closing = closingIndex else {
-            index = startIndex
-            return nil
+        if let inlinePayload = singleLineMathContent(from: trimmed) {
+            index += 1
+            return .mathBlock(source: inlinePayload)
         }
 
-        index = closing + 1
-        return .mathBlock(source: body.joined(separator: "\n"))
+        return nil
     }
 
     private mutating func parseFencedBlock() -> MarkdownBlock? {
@@ -112,7 +121,7 @@ private struct BlockParser {
             return .mermaidBlock(source: payload)
         }
         if info == "math" {
-            return .mathBlock(source: payload)
+            return .mathBlock(source: trimmedMathSource(payload))
         }
         return .codeBlock(language: fence.info.isEmpty ? nil : fence.info, source: payload)
     }
@@ -222,6 +231,10 @@ private struct BlockParser {
         return .blockQuote(children: blocks)
     }
 
+    // Audit 2026-02-04: Parser already recognizes unordered markers (-, *, +) and ordered digits with optional
+    // numbering, emitting MarkdownListStyle accordingly. However list items are flattened to a single paragraph
+    // and continuation lines drop nested structure, so list item blocks (additional paragraphs, code, nested
+    // lists) are not preserved.
     private mutating func parseList() -> MarkdownBlock? {
         guard let marker = parseListMarker(from: currentLine ?? "") else { return nil }
         var items: [MarkdownListEntry] = []
@@ -231,23 +244,30 @@ private struct BlockParser {
         index += 1
 
         func flushCurrent() {
-            let text = currentLines.joined(separator: " \n").trimmingCharacters(in: .whitespaces)
-            guard !text.isEmpty else {
+            let raw = currentLines.joined(separator: "\n")
+            let trimmedForPresence = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedForPresence.isEmpty else {
                 currentLines.removeAll(keepingCapacity: true)
                 return
             }
 
-            let taskInfo = parseTaskMarker(from: text)
-            let content: String
-            if let info = taskInfo {
-                content = info.remainder
-            } else {
-                content = text
+            var taskInfo: (checked: Bool, remainder: String)? = nil
+            if let first = currentLines.first {
+                taskInfo = parseTaskMarker(from: first)
             }
 
-            var inlineParser = InlineParser(text: content)
-            let inlines = inlineParser.parse()
-            let blocks = [MarkdownBlock.paragraph(inlines: inlines)]
+            var linesForParsing = currentLines
+            if let info = taskInfo {
+                linesForParsing[0] = info.remainder
+            }
+
+            let content = linesForParsing.joined(separator: "\n")
+            var nestedParser = BlockParser(lines: content.normalizedMarkdownLines())
+            let blocks = nestedParser.parseBlocks()
+            guard !blocks.isEmpty else {
+                currentLines.removeAll(keepingCapacity: true)
+                return
+            }
 
             if let info = taskInfo {
                 let task = MarkdownTaskListItem(checked: info.checked, blocks: blocks)
@@ -280,7 +300,7 @@ private struct BlockParser {
             if startsNewBlock(line) {
                 break
             }
-            currentLines.append(line.trimmed())
+            currentLines.append(line)
             index += 1
         }
 
@@ -353,6 +373,7 @@ private struct BlockParser {
         let trimmed = line.trimmed()
         if trimmed.isEmpty { return true }
         if trimmed == "$$" { return true }
+        if singleLineMathContent(from: trimmed) != nil { return true }
         if FenceInfo(line: trimmed) != nil { return true }
         if parseListMarker(from: line) != nil { return true }
         if trimmed.hasPrefix(">") { return true }
@@ -458,11 +479,8 @@ private struct BlockParser {
             }
         }
         guard spaces >= 2 else { return nil }
-        while idx < line.endIndex && line[idx] == " " {
-            idx = line.index(after: idx)
-        }
-        let remainder = line[idx...].trimmingCharacters(in: .whitespaces)
-        return remainder.isEmpty ? nil : remainder
+        let remainder = line[idx...]
+        return remainder.isEmpty ? nil : String(remainder)
     }
 
     private func parseTableCells(from line: String) -> [String] {
@@ -511,6 +529,18 @@ private struct BlockParser {
         let target = index + offset
         guard target >= 0, target < lines.count else { return nil }
         return lines[target]
+    }
+
+    private func singleLineMathContent(from trimmedLine: String) -> String? {
+        guard trimmedLine.hasPrefix("$$") else { return nil }
+        let remainder = trimmedLine.dropFirst(2)
+        guard remainder.hasSuffix("$$") else { return nil }
+        let inner = remainder.dropLast(2)
+        return trimmedMathSource(String(inner))
+    }
+
+    private func trimmedMathSource(_ source: String) -> String {
+        source.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

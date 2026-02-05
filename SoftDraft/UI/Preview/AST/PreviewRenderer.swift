@@ -2,24 +2,88 @@
 //  PreviewRenderer.swift
 //  SoftDraft
 //
-//  Created by Matt Adams on 02/02/2026.
-//
 
 import SwiftUI
 import AppKit
 
 struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
 
-    // MARK: - Blocks
+    // MARK: - Rhythm
+
+    private let blockSpacing: CGFloat = 12
+    private let paragraphSpacing: CGFloat = 8
+    private let lineSpacing: CGFloat = 4
+    private let listItemSpacing: CGFloat = 6
+
+    // MARK: - Nesting guide
+
+    private let nestingGuideWidth: CGFloat = 1
+    private let nestingGuideOpacity: CGFloat = 0.12
+
+    // MARK: - Task styling
+
+    private let taskListBackgroundOpacity: CGFloat = 0.04
+
+    // MARK: - List layout
+
+    private let markerWidth: CGFloat = 22
+
+    // MARK: - Typography
+
+    private let bodyFont = Font.system(size: 17, weight: .regular, design: .default)
+
+    private func headingFont(for level: Int) -> Font {
+        switch level {
+        case 1: return .system(size: 24, weight: .semibold, design: .default)
+        case 2: return .system(size: 20, weight: .semibold, design: .default)
+        case 3: return .system(size: 18, weight: .medium, design: .default)
+        default: return .system(size: 17, weight: .medium, design: .default)
+        }
+    }
+
+    // MARK: - Block rendering (public entry)
 
     func renderBlock(_ block: MarkdownBlock) -> AnyView {
+        renderBlock(block, depth: 0)
+    }
+
+    // MARK: - Block rendering (depth-aware)
+
+    private func renderBlock(_ block: MarkdownBlock, depth: Int) -> AnyView {
         switch block {
+
+        case .thematicBreak:
+            return AnyView(
+                ThematicBreakView()
+                    .padding(.vertical, 4)
+            )
+
+        case .codeBlock(let language, let source):
+            return AnyView(
+                BlockCodeView(source: source, language: language)
+                    .padding(.vertical, 2)
+            )
+
+        case .mathBlock(let source):
+            return AnyView(
+                BlockMathView(source: source)
+                    .padding(.vertical, 2)
+            )
+
+        case .mermaidBlock(let source):
+            return AnyView(
+                BlockMermaidView(source: source)
+                    .padding(.vertical, 2)
+            )
+
+        case .table(let table):
+            return renderTable(table)
 
         case .document(let blocks):
             return AnyView(
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: blockSpacing) {
                     ForEach(blocks.indices, id: \.self) { i in
-                        renderBlock(blocks[i])
+                        renderBlock(blocks[i], depth: depth)
                     }
                 }
             )
@@ -27,132 +91,320 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
         case .paragraph(let inlines):
             return AnyView(
                 Text(renderInlineGroup(inlines))
+                    .font(bodyFont)
+                    .lineSpacing(lineSpacing)
+                    .padding(.bottom, paragraphSpacing)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             )
 
         case .heading(let level, let inlines):
             return AnyView(
                 Text(renderInlineGroup(inlines))
-                    .font(.system(size: headingSize(for: level), weight: .bold))
+                    .font(headingFont(for: level))
+                    .lineSpacing(lineSpacing)
+                    .padding(.top, blockSpacing)
+                    .padding(.bottom, paragraphSpacing)
             )
 
         case .blockQuote(let children):
             return AnyView(
                 HStack(alignment: .top, spacing: 12) {
-                    Rectangle()
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.primary.opacity(0.14))
                         .frame(width: 3)
-                        .opacity(0.3)
 
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(children.indices, id: \.self) { i in
-                            renderBlock(children[i])
+                            renderBlock(children[i], depth: depth)
                         }
                     }
                 }
+                .padding(.horizontal, 12)
+                .padding(.bottom, paragraphSpacing)
             )
 
-        case .list(_, let items):
-            return AnyView(
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(items.indices, id: \.self) { i in
-                        renderListItem(items[i])
-                    }
+        case .list(let style, let items):
+            let isTaskList = items.allSatisfy { entry in
+                if case .taskItem = entry { return true }
+                return false
+            }
+
+            let listContent = VStack(alignment: .leading, spacing: listItemSpacing) {
+                ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                    renderListItem(
+                        item,
+                        index: index,
+                        style: style,
+                        depth: depth
+                    )
                 }
+            }
+            .padding(.leading, depth > 0 ? 16 : 0)
+            .background(alignment: .leading) {
+                nestingGuide(for: depth)
+            }
+
+            let decorated: AnyView
+            if isTaskList {
+                decorated = AnyView(
+                    listContent
+                        .padding(.horizontal, blockSpacing)
+                        .padding(.vertical, blockSpacing)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color.primary.opacity(taskListBackgroundOpacity))
+                        )
+                )
+            } else {
+                decorated = AnyView(listContent)
+            }
+
+            return AnyView(
+                decorated
+                    .padding(.bottom, paragraphSpacing)
             )
 
         default:
-            return AnyView(
-                DebugFallbackBlockView(block: block)
-            )
+            return AnyView(DebugFallbackBlockView(block: block))
         }
     }
 
-    // MARK: - List Items
+    // MARK: - List items
 
-    func renderListItem(_ entry: MarkdownListEntry) -> AnyView {
-        switch entry {
+    private func renderListItem(
+        _ entry: MarkdownListEntry,
+        index: Int,
+        style: MarkdownListStyle,
+        depth: Int
+    ) -> AnyView {
 
-        case .listItem(let item):
-            return AnyView(
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(item.blocks.indices, id: \.self) { i in
-                        renderBlock(item.blocks[i])
-                    }
-                }
-            )
+        AnyView(
+            HStack(alignment: .top, spacing: 8) {
 
-        case .taskItem(let item):
-            return AnyView(
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: item.checked ? "checkmark.square" : "square")
-                        .font(.caption)
+                listMarker(for: entry, index: index, style: style)
+                    .frame(width: markerWidth, alignment: .trailing)
+                    .padding(.top, 3)
 
-                    VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: listItemSpacing) {
+                    switch entry {
+
+                    case .taskItem(let item):
                         ForEach(item.blocks.indices, id: \.self) { i in
-                            renderBlock(item.blocks[i])
+                            renderBlock(item.blocks[i], depth: depth + 1)
+                        }
+
+                    case .listItem(let item):
+                        ForEach(item.blocks.indices, id: \.self) { i in
+                            renderBlock(item.blocks[i], depth: depth + 1)
                         }
                     }
                 }
-            )
+            }
+        )
+    }
+
+    private func renderTable(_ table: MarkdownTable) -> AnyView {
+        let columnCount = max(
+            table.header?.cells.count ?? 0,
+            table.rows.map { $0.cells.count }.max() ?? 0
+        )
+
+        guard columnCount > 0 else {
+            return AnyView(EmptyView().padding(.bottom, paragraphSpacing))
+        }
+
+        return AnyView(
+            VStack(alignment: .leading, spacing: listItemSpacing) {
+                if let header = table.header {
+                    HStack(alignment: .firstTextBaseline, spacing: blockSpacing) {
+                        ForEach(0..<columnCount, id: \.self) { column in
+                            tableCell(
+                                for: header,
+                                column: column,
+                                alignments: table.alignments,
+                                isHeader: true
+                            )
+                        }
+                    }
+                    .padding(.bottom, listItemSpacing)
+                    .overlay(alignment: .bottomLeading) {
+                        Rectangle()
+                            .frame(height: 1)
+                            .foregroundStyle(Color.primary.opacity(0.08))
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: listItemSpacing) {
+                    ForEach(Array(table.rows.enumerated()), id: \.offset) { _, row in
+                        HStack(alignment: .firstTextBaseline, spacing: blockSpacing) {
+                            ForEach(0..<columnCount, id: \.self) { column in
+                                tableCell(
+                                    for: row,
+                                    column: column,
+                                    alignments: table.alignments,
+                                    isHeader: false
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, listItemSpacing)
+            .padding(.bottom, paragraphSpacing)
+        )
+    }
+
+    @ViewBuilder
+    private func tableCell(
+        for row: MarkdownTableRow,
+        column: Int,
+        alignments: [MarkdownTableAlignment],
+        isHeader: Bool
+    ) -> some View {
+        let inlines = column < row.cells.count ? row.cells[column] : []
+
+        let attributed = renderInlineGroup(inlines)
+        let columnAlignment = tableAlignment(for: column, alignments: alignments)
+
+        Text(attributed)
+            .font(bodyFont)
+            .fontWeight(isHeader ? .semibold : .regular)
+            .lineSpacing(lineSpacing)
+            .multilineTextAlignment(tableTextAlignment(for: columnAlignment))
+            .frame(maxWidth: .infinity, alignment: tableFrameAlignment(for: columnAlignment))
+            .foregroundStyle(Color.primary.opacity(isHeader ? 0.9 : 0.82))
+            .padding(.vertical, listItemSpacing / 2)
+    }
+
+    private func tableAlignment(
+        for column: Int,
+        alignments: [MarkdownTableAlignment]
+    ) -> MarkdownTableAlignment {
+        guard column < alignments.count else { return .left }
+        return alignments[column]
+    }
+
+    private func tableFrameAlignment(
+        for alignment: MarkdownTableAlignment
+    ) -> Alignment {
+        switch alignment {
+        case .left, .unspecified:
+            return .leading
+        case .center:
+            return .center
+        case .right:
+            return .trailing
         }
     }
 
-    // MARK: - Inline Rendering (AttributedString)
+    private func tableTextAlignment(
+        for alignment: MarkdownTableAlignment
+    ) -> TextAlignment {
+        switch alignment {
+        case .left, .unspecified:
+            return .leading
+        case .center:
+            return .center
+        case .right:
+            return .trailing
+        }
+    }
+
+    @ViewBuilder
+    private func nestingGuide(for depth: Int) -> some View {
+        if depth > 0 {
+            Capsule()
+                .fill(Color.primary.opacity(nestingGuideOpacity))
+                .frame(width: nestingGuideWidth)
+                .frame(maxHeight: .infinity)
+                .padding(.vertical, blockSpacing)
+        }
+    }
+
+    // MARK: - List markers
+
+    @ViewBuilder
+    private func listMarker(
+        for entry: MarkdownListEntry,
+        index: Int,
+        style: MarkdownListStyle
+    ) -> some View {
+
+        switch entry {
+
+        case .taskItem(let item):
+            Image(systemName: item.checked ? "checkmark.square" : "square")
+                .font(.system(size: 14))
+                .foregroundStyle(.secondary)
+
+        case .listItem:
+            switch style {
+
+            case .unordered:
+                Text("•")
+                    .font(.system(size: 15, weight: .regular, design: .default))
+                    .foregroundStyle(Color.primary.opacity(0.55))
+
+            case .ordered(let start):
+                let number = start + index
+                Text("\(number).")
+                    .font(.system(size: 15, weight: .regular, design: .default))
+                    .foregroundStyle(Color.primary.opacity(0.5))
+            }
+        }
+    }
+
+    // MARK: - Inline rendering
 
     func renderInline(_ inline: MarkdownInline) -> AttributedString {
         switch inline {
+
+        case .mathInline(let source):
+            var result = AttributedString(source)
+            result.font = .system(.body, design: .monospaced)
+            result.foregroundColor = Color.primary.opacity(0.9)
+            return result
 
         case .text(let value):
             return AttributedString(value)
 
         case .emphasis(let children):
             var result = renderInlineGroup(children)
-            result.font = .system(.body).italic()
+            result.font = bodyFont.italic()
             return result
 
         case .strong(let children):
             var result = renderInlineGroup(children)
-            result.font = .system(.body).bold()
+            result.font = bodyFont.weight(.semibold)
             return result
-        
+
         case .highlight(let children):
             var result = renderInlineGroup(children)
-
-            // Subtle, adaptive highlight
-            result.backgroundColor = .yellow.opacity(0.35)
-
+            result.backgroundColor = .yellow.opacity(0.25)
             return result
 
         case .inlineCode(let code):
-            var result = AttributedString(" \(code) ")
-
-            // Monospaced font
+            var result = AttributedString(code)
             result.font = .system(.body, design: .monospaced)
-
-            // Adaptive colours (light & dark safe)
-            result.foregroundColor = .secondary
-            result.backgroundColor = .secondary.opacity(0.2)
-
+            result.foregroundColor = Color.primary.opacity(0.85)
+            result.backgroundColor = Color.primary.opacity(0.06)
             return result
-        
+
         case .strikethrough(let children):
             var result = renderInlineGroup(children)
             result.strikethroughStyle = .single
+            result.foregroundColor = Color.secondary
             return result
 
         case .link(let link):
-            // Render the link label from its inline children
             var result = renderInlineGroup(link.children)
-
-            // System-handled external link
             if let url = URL(string: link.destination) {
                 result.link = url
             }
-
-            // Calm, adaptive styling
-            result.foregroundColor = Color.accentColor
+            result.foregroundColor = Color.accentColor.opacity(0.9)
             result.underlineStyle = Text.LineStyle.single
-
             return result
+
         default:
             return AttributedString("[inline]")
         }
@@ -164,15 +416,5 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
             result += renderInline(inline)
         }
         return result
-    }
-    // MARK: - Helpers
-
-    func headingSize(for level: Int) -> CGFloat {
-        switch level {
-        case 1: return 28
-        case 2: return 24
-        case 3: return 20
-        default: return 18
-        }
     }
 }

@@ -290,6 +290,158 @@ final class MarkdownASTParserTests: XCTestCase {
         }
     }
 
+    func testSimpleUnorderedListProducesBlocks() {
+        let source = """
+        - First
+        - Second
+        """
+
+        let document = parser.parse(source)
+        guard let block = rootBlocks(in: document).first,
+              case .list(let style, let items) = block else {
+            return XCTFail("Expected unordered list block")
+        }
+        guard case .unordered = style else {
+            return XCTFail("Expected unordered style")
+        }
+
+        XCTAssertEqual(items.count, 2)
+        guard case .listItem(let first) = items[0],
+              first.blocks.count == 1,
+              case .paragraph(let inlines) = first.blocks[0] else {
+            return XCTFail("Expected paragraph block for first list item")
+        }
+        XCTAssertEqual(inlines, [.text("First")])
+    }
+
+    func testOrderedListEmitsOrderedStyle() {
+        let source = """
+        1. Alpha
+        2. Beta
+        """
+
+        let document = parser.parse(source)
+        guard let block = rootBlocks(in: document).first,
+              case .list(let style, let items) = block else {
+            return XCTFail("Expected ordered list block")
+        }
+        guard case .ordered(let start) = style else {
+            return XCTFail("Expected ordered style")
+        }
+        XCTAssertEqual(start, 1)
+        XCTAssertEqual(items.count, 2)
+        guard case .listItem(let first) = items[0],
+              first.blocks.count == 1,
+              case .paragraph(let firstParagraph) = first.blocks[0] else {
+            return XCTFail("Expected first ordered item to include paragraph block")
+        }
+        XCTAssertEqual(firstParagraph, [.text("Alpha")])
+    }
+
+    func testOrderedListHonorsCustomStartIndex() {
+        let source = """
+        3. Third
+        4. Fourth
+        """
+
+        let document = parser.parse(source)
+        guard let block = rootBlocks(in: document).first,
+              case .list(let style, _) = block else {
+            return XCTFail("Expected ordered list block")
+        }
+        guard case .ordered(let start) = style else {
+            return XCTFail("Expected ordered style")
+        }
+        XCTAssertEqual(start, 3)
+    }
+
+    func testNestedOrderedListInsideUnorderedItem() {
+        let source = """
+        - Parent
+          1. Child one
+          2. Child two
+        - Sibling
+        """
+
+        let document = parser.parse(source)
+        guard let block = rootBlocks(in: document).first,
+              case .list(let style, let items) = block else {
+            return XCTFail("Expected outer list block")
+        }
+        guard case .unordered = style else {
+            return XCTFail("Expected outer unordered style")
+        }
+        guard case .listItem(let parent) = items.first,
+              parent.blocks.count == 2,
+              case .paragraph = parent.blocks[0],
+              case .list(let nestedStyle, let nestedItems) = parent.blocks[1] else {
+            return XCTFail("Expected nested ordered list inside first item")
+        }
+        guard case .ordered(let nestedStart) = nestedStyle else {
+            return XCTFail("Expected nested ordered style")
+        }
+        XCTAssertEqual(nestedStart, 1)
+        XCTAssertEqual(nestedItems.count, 2)
+    }
+
+    func testNestedUnorderedListInsideOrderedItem() {
+        let source = """
+        1. Alpha
+           - Nested one
+           - Nested two
+        2. Beta
+        """
+
+        let document = parser.parse(source)
+        guard let block = rootBlocks(in: document).first,
+              case .list(let style, let items) = block else {
+            return XCTFail("Expected ordered list block")
+        }
+        guard case .ordered = style else {
+            return XCTFail("Expected ordered style for outer list")
+        }
+        guard case .listItem(let firstOuter) = items.first,
+              firstOuter.blocks.count == 2,
+              case .paragraph = firstOuter.blocks[0],
+              case .list(let nestedStyle, let nestedItems) = firstOuter.blocks[1] else {
+            return XCTFail("Expected nested unordered list in first ordered item")
+        }
+        guard case .unordered = nestedStyle else {
+            return XCTFail("Expected nested unordered style")
+        }
+        XCTAssertEqual(nestedItems.count, 2)
+    }
+
+    func testListItemCanContainMultipleBlocks() {
+        let source = """
+        - Intro paragraph
+
+          ```
+          line one
+          line two
+          ```
+        """
+
+        let document = parser.parse(source)
+        guard let block = rootBlocks(in: document).first,
+              case .list(_, let items) = block else {
+            return XCTFail("Expected list block")
+        }
+        guard case .listItem(let first) = items.first else {
+            return XCTFail("Expected standard list item")
+        }
+        XCTAssertEqual(first.blocks.count, 2)
+        guard case .paragraph = first.blocks[0] else {
+            return XCTFail("Expected paragraph as first block")
+        }
+        guard case .codeBlock(let language, let source) = first.blocks[1] else {
+            return XCTFail("Expected code block as second block")
+        }
+        XCTAssertNil(language)
+        XCTAssertTrue(source.contains("line one"))
+        XCTAssertTrue(source.contains("line two"))
+    }
+
     func testMermaidBlockCapturedVerbatim() {
         let source = """
         ```mermaid
@@ -306,6 +458,23 @@ final class MarkdownASTParserTests: XCTestCase {
         }
         XCTAssertTrue(source.contains("graph TD"))
         XCTAssertTrue(source.contains("A-->B"))
+    }
+
+    func testSimpleMathBlockProducesBlockNode() {
+        let source = #"""
+        $$
+        x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
+        $$
+        """#
+
+        let document = parser.parse(source)
+        let blocks = rootBlocks(in: document)
+        guard blocks.count == 1,
+              case .mathBlock(let mathSource) = blocks.first else {
+            return XCTFail("Expected math block as only node")
+        }
+
+        XCTAssertEqual(mathSource, #"x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}"#)
     }
 
     func testMathBlocksAndInlineMath() {
@@ -402,6 +571,19 @@ final class MarkdownASTParserTests: XCTestCase {
             if case .mathInline = inline { return true }
             return false
         })
+    }
+
+    func testSingleLineMathBlockProducesMathNode() {
+        let source = "$$ x^2 + y^2 = z^2 $$"
+
+        let document = parser.parse(source)
+        let blocks = rootBlocks(in: document)
+        guard blocks.count == 1,
+              case .mathBlock(let payload) = blocks.first else {
+            return XCTFail("Expected math block for single-line display math")
+        }
+
+        XCTAssertEqual(payload, "x^2 + y^2 = z^2")
     }
 
     func testBlockMathCapturesNewlinesInSingleNode() {

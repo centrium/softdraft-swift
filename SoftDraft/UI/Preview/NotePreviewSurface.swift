@@ -27,6 +27,7 @@ struct NotePreviewSurface: View {
                 .padding(.vertical, 32)
             }
         }
+        .textSelection(.enabled)
         .onAppear {
             renderImmediately(for: text)
         }
