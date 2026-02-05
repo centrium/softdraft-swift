@@ -6,6 +6,7 @@ struct NotePreviewSurface: View {
     
     @State private var renderedView: AnyView = AnyView(Text(NotePreviewSurface.placeholderText))
     @State private var debounceTask: Task<Void, Never>?
+    @Environment(\.colorScheme) private var colorScheme
     
     private static let placeholderText = "Start typing to see the preview."
     private let debounceDelay: UInt64 = 140_000_000 // ~140ms
@@ -33,6 +34,9 @@ struct NotePreviewSurface: View {
         }
         .onChange(of: text) { _, newValue in
             scheduleRender(for: newValue)
+        }
+        .onChange(of: colorScheme) { _, _ in
+            renderImmediately(for: text)
         }
         .onDisappear {
             debounceTask?.cancel()
@@ -71,7 +75,7 @@ struct NotePreviewSurface: View {
         }
         
         let document = parser.parse(text)
-        let renderer = PreviewRenderer()
+        let renderer = PreviewRenderer(colorScheme: colorScheme)
         
         // 👇 THIS is the key line
         return renderer.renderBlock(document.root)

@@ -8,6 +8,8 @@ import AppKit
 
 struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
 
+    let colorScheme: ColorScheme
+
     // MARK: - Rhythm
 
     private let blockSpacing: CGFloat = 12
@@ -18,11 +20,15 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
     // MARK: - Nesting guide
 
     private let nestingGuideWidth: CGFloat = 1
-    private let nestingGuideOpacity: CGFloat = 0.12
 
-    // MARK: - Task styling
+    private var dividerColor: Color {
+        Color(nsColor: .separatorColor)
+            .opacity(colorScheme == .dark ? 0.9 : 1)
+    }
 
-    private let taskListBackgroundOpacity: CGFloat = 0.04
+    private var taskListBackground: Color {
+        Color(nsColor: .controlBackgroundColor)
+    }
 
     // MARK: - List layout
 
@@ -108,9 +114,9 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
 
         case .blockQuote(let children):
             return AnyView(
-                HStack(alignment: .top, spacing: 12) {
+                HStack(alignment: .center, spacing: 12) {
                     RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.primary.opacity(0.14))
+                        .fill(dividerColor)
                         .frame(width: 3)
 
                     VStack(alignment: .leading, spacing: 8) {
@@ -152,7 +158,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
                         .padding(.vertical, blockSpacing)
                         .background(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(Color.primary.opacity(taskListBackgroundOpacity))
+                                .fill(taskListBackground)
                         )
                 )
             } else {
@@ -230,7 +236,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
                     .overlay(alignment: .bottomLeading) {
                         Rectangle()
                             .frame(height: 1)
-                            .foregroundStyle(Color.primary.opacity(0.08))
+                            .foregroundStyle(dividerColor)
                     }
                 }
 
@@ -272,7 +278,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
             .lineSpacing(lineSpacing)
             .multilineTextAlignment(tableTextAlignment(for: columnAlignment))
             .frame(maxWidth: .infinity, alignment: tableFrameAlignment(for: columnAlignment))
-            .foregroundStyle(Color.primary.opacity(isHeader ? 0.9 : 0.82))
+            .foregroundStyle(isHeader ? Color.primary : Color.primary)
             .padding(.vertical, listItemSpacing / 2)
     }
 
@@ -314,7 +320,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
     private func nestingGuide(for depth: Int) -> some View {
         if depth > 0 {
             Capsule()
-                .fill(Color.primary.opacity(nestingGuideOpacity))
+                .fill(dividerColor.opacity(0.5))
                 .frame(width: nestingGuideWidth)
                 .frame(maxHeight: .infinity)
                 .padding(.vertical, blockSpacing)
@@ -343,13 +349,13 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
             case .unordered:
                 Text("•")
                     .font(.system(size: 15, weight: .regular, design: .default))
-                    .foregroundStyle(Color.primary.opacity(0.55))
+                    .foregroundStyle(.secondary)
 
             case .ordered(let start):
                 let number = start + index
                 Text("\(number).")
                     .font(.system(size: 15, weight: .regular, design: .default))
-                    .foregroundStyle(Color.primary.opacity(0.5))
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -362,7 +368,6 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
         case .mathInline(let source):
             var result = AttributedString(source)
             result.font = .system(.body, design: .monospaced)
-            result.foregroundColor = Color.primary.opacity(0.9)
             return result
 
         case .text(let value):
@@ -386,8 +391,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
         case .inlineCode(let code):
             var result = AttributedString(code)
             result.font = .system(.body, design: .monospaced)
-            result.foregroundColor = Color.primary.opacity(0.85)
-            result.backgroundColor = Color.primary.opacity(0.06)
+            result.backgroundColor = Color(nsColor: .controlBackgroundColor)
             return result
 
         case .strikethrough(let children):
