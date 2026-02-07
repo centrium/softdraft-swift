@@ -154,6 +154,7 @@ private extension LibraryLoadedView {
             // Editor content
             PersistentEditorHost(noteID: selection.selectedNoteID)
                 .opacity(selection.selectedNoteID == nil ? 0 : 1)
+                .mask(editorFadeMask)
 
             // Landing view (no note selected)
             if selection.selectedNoteID == nil {
@@ -174,6 +175,7 @@ private extension LibraryLoadedView {
     
     var previewStack: some View {
         NotePreviewSurface(text: libraryManager.currentNoteText)
+            .mask(editorFadeMask)
     }
 }
 
@@ -190,5 +192,33 @@ private extension LibraryLoadedView {
             noteCount: notes.count,
             lastUpdated: latestDate
         )
+    }
+}
+
+private var topFadeMask: some View {
+    LinearGradient(
+        colors: [
+            Color.clear,   // fully transparent at very top
+            Color.black,   // fully opaque
+        ],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+    .frame(height: 60)   // controls how gradual the fade is
+}
+
+private var editorFadeMask: some View {
+    VStack(spacing: 0) {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0.0),
+                .init(color: .black, location: 1.0),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(height: 48)
+
+        Rectangle() // fully opaque remainder
     }
 }
