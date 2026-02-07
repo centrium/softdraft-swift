@@ -19,14 +19,11 @@ struct NotePreviewSurface: View {
                 .ignoresSafeArea()
             
             ScrollView {
-                HStack {
-                    Spacer(minLength: 0)
-                    renderedView
-                        .frame(maxWidth: 680, alignment: .leading)
-                        .padding(24)
-                    Spacer(minLength: 0)
-                }
-                .padding(.vertical, 32)
+                // Previously we constrained the renderer output here, which meant
+                // any attempt to promote the first image never escaped the 680pt column.
+                renderedView
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .padding(.vertical, 32)
             }
         }
         .textSelection(.enabled)
@@ -69,10 +66,7 @@ struct NotePreviewSurface: View {
     private func renderAST(from text: String) -> AnyView {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            return AnyView(
-                Text(Self.placeholderText)
-                    .foregroundStyle(.secondary)
-            )
+            return AnyView(placeholderView)
         }
         
         let document = parser.parse(text)
@@ -83,5 +77,16 @@ struct NotePreviewSurface: View {
         
         // 👇 THIS is the key line
         return renderer.renderBlock(document.root)
+    }
+
+    private var placeholderView: some View {
+        HStack {
+            Spacer(minLength: 0)
+            Text(Self.placeholderText)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: 680, alignment: .leading)
+                .padding(24)
+            Spacer(minLength: 0)
+        }
     }
 }

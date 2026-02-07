@@ -17,6 +17,9 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
     private let paragraphSpacing: CGFloat = 8
     private let lineSpacing: CGFloat = 4
     private let listItemSpacing: CGFloat = 6
+    private let coverSpacing: CGFloat = 28
+    private let bodyWidth: CGFloat = 680
+    private let bodyHorizontalPadding: CGFloat = 24
 
     // MARK: - Nesting guide
 
@@ -93,12 +96,24 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
             return renderTable(table)
 
         case .document(let blocks):
+            let context = documentContext(for: blocks)
             return AnyView(
-                VStack(alignment: .leading, spacing: blockSpacing) {
-                    ForEach(blocks.indices, id: \.self) { i in
-                        renderBlock(blocks[i], depth: depth)
+                PreviewDocumentView(
+                    bodyBlocks: context.bodyBlocks,
+                    depth: depth,
+                    coverContext: context.cover,
+                    blockSpacing: blockSpacing,
+                    coverSpacing: coverSpacing,
+                    bodyWidth: bodyWidth,
+                    bodyPadding: bodyHorizontalPadding,
+                    libraryURL: libraryURL,
+                    renderBlock: { block, nestedDepth in
+                        renderBlock(block, depth: nestedDepth)
+                    },
+                    renderCoverHeadline: { block in
+                        renderCoverHeadline(for: block)
                     }
-                }
+                )
             )
 
         case .paragraph(let inlines):
@@ -180,6 +195,63 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
         default:
             return AnyView(DebugFallbackBlockView(block: block))
         }
+    }
+
+    // MARK: - Cover helpers
+
+    private func documentContext(for blocks: [MarkdownBlock]) -> DocumentContext {
+        guard !blocks.isEmpty else {
+            return DocumentContext(cover: nil, bodyBlocks: [])
+        }
+
+        if case .image(let image) = blocks.first {
+            let remainder = Array(blocks.dropFirst())
+            let cover = CoverPresentation(
+                block: blocks[0],
+                image: image,
+                headlineIndex: preferredHeadlineIndex(in: remainder)
+            )
+            return DocumentContext(cover: cover, bodyBlocks: remainder)
+        }
+
+        return DocumentContext(cover: nil, bodyBlocks: blocks)
+    }
+
+    private func preferredHeadlineIndex(in blocks: [MarkdownBlock]) -> Int? {
+        guard !blocks.isEmpty else { return nil }
+
+        if let firstH1 = blocks.firstIndex(where: { block in
+            if case .heading(let level, _) = block, level == 1 {
+                return true
+            }
+            return false
+        }) {
+            return firstH1
+        }
+
+        if let fallbackHeading = blocks.firstIndex(where: { block in
+            if case .heading = block { return true }
+            return false
+        }) {
+            return fallbackHeading
+        }
+
+        return nil
+    }
+
+    private func renderCoverHeadline(for block: MarkdownBlock) -> AnyView {
+        guard case .heading(_, let inlines) = block else {
+            return renderBlock(block, depth: 0)
+        }
+
+        let content = Text(renderInlineGroup(inlines))
+            .font(.system(size: 34, weight: .heavy, design: .default))
+            .lineSpacing(lineSpacing + 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 2)
+            .padding(.bottom, paragraphSpacing + 16)
+
+        return AnyView(content)
     }
 
     // MARK: - List items
@@ -427,5 +499,99 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
             result += renderInline(inline)
         }
         return result
+    }
+}
+
+// MARK: - Document container
+private struct DocumentContext {
+    let cover: CoverPresentation?
+    let bodyBlocks: [MarkdownBlock]
+}
+
+private struct CoverPresentation: Equatable {
+    let block: MarkdownBlock
+    let image: MarkdownImage
+    let headlineIndex: Int?
+}
+
+private struct PreviewDocumentView: View {
+
+    let bodyBlocks: [MarkdownBlock]
+    let depth: Int
+    let coverContext: CoverPresentation?
+    let blockSpacing: CGFloat
+    let coverSpacing: CGFloat
+    let bodyWidth: CGFloat
+    let bodyPadding: CGFloat
+    let libraryURL: URL?
+    let renderBlock: (MarkdownBlock, Int) -> AnyView
+    let renderCoverHeadline: (MarkdownBlock) -> AnyView
+
+    @State private var coverVisibility: CoverVisibility
+
+    init(
+        bodyBlocks: [MarkdownBlock],
+        depth: Int,
+        coverContext: CoverPresentation?,
+        blockSpacing: CGFloat,
+        coverSpacing: CGFloat,
+        bodyWidth: CGFloat,
+        bodyPadding: CGFloat,
+        libraryURL: URL?,
+        renderBlock: @escaping (MarkdownBlock, Int) -> AnyView,
+        renderCoverHeadline: @escaping (MarkdownBlock) -> AnyView
+    ) {
+        self.bodyBlocks = bodyBlocks
+        self.depth = depth
+        self.coverContext = coverContext
+        self.blockSpacing = blockSpacing
+        self.coverSpacing = coverSpacing
+        self.bodyWidth = bodyWidth
+        self.bodyPadding = bodyPadding
+        self.libraryURL = libraryURL
+        self.renderBlock = renderBlock
+        self.renderCoverHeadline = renderCoverHeadline
+        _coverVisibility = State(initialValue: coverContext == nil ? .failed : .pending)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if let coverContext, coverVisibility != .failed {
+                CoverImageView(
+                    image: coverContext.image,
+                    libraryURL: libraryURL,
+                    visibility: $coverVisibility
+                )
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, coverVisibility == .visible ? coverSpacing : 0)
+            }
+
+            HStack(alignment: .top, spacing: 0) {
+                Spacer(minLength: 0)
+                VStack(alignment: .leading, spacing: blockSpacing) {
+                    if let coverContext, coverVisibility == .failed {
+                        renderBlock(coverContext.block, depth)
+                    }
+
+                    ForEach(Array(bodyBlocks.enumerated()), id: \.offset) { index, block in
+                        if let coverContext,
+                           let headlineIndex = coverContext.headlineIndex,
+                           index == headlineIndex,
+                           case .heading = block {
+                            renderCoverHeadline(block)
+                        } else {
+                            renderBlock(block, depth)
+                        }
+                    }
+                }
+                .frame(maxWidth: bodyWidth, alignment: .leading)
+                .padding(.horizontal, bodyPadding)
+                Spacer(minLength: 0)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .onChange(of: coverContext) { newValue in
+            coverVisibility = newValue == nil ? .failed : .pending
+        }
     }
 }
