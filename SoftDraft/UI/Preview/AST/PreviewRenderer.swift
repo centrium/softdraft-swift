@@ -9,6 +9,7 @@ import AppKit
 struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
 
     let colorScheme: ColorScheme
+    let libraryURL: URL?
 
     // MARK: - Rhythm
 
@@ -57,6 +58,12 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
 
     private func renderBlock(_ block: MarkdownBlock, depth: Int) -> AnyView {
         switch block {
+            
+        case .image(let image):
+            return AnyView(
+                BlockImageView(image: image, libraryURL: libraryURL)
+                    .padding(.bottom, paragraphSpacing)
+            )
 
         case .thematicBreak:
             return AnyView(

@@ -30,7 +30,7 @@ struct NoteEditorView: View {
             text: $text,
             configuration: EditorConfiguration(
                 fontFamily: "SoftdraftEditorMono",
-                showLineNumbers: false
+                showLineNumbers: false,
             )
         )
         .onChange(of: text) { _, newValue in

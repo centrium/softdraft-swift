@@ -7,6 +7,7 @@ struct NotePreviewSurface: View {
     @State private var renderedView: AnyView = AnyView(Text(NotePreviewSurface.placeholderText))
     @State private var debounceTask: Task<Void, Never>?
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var libraryManager: LibraryManager
     
     private static let placeholderText = "Start typing to see the preview."
     private let debounceDelay: UInt64 = 140_000_000 // ~140ms
@@ -75,7 +76,10 @@ struct NotePreviewSurface: View {
         }
         
         let document = parser.parse(text)
-        let renderer = PreviewRenderer(colorScheme: colorScheme)
+        let renderer = PreviewRenderer(
+            colorScheme: colorScheme,
+            libraryURL: libraryManager.activeLibraryURL
+        )
         
         // 👇 THIS is the key line
         return renderer.renderBlock(document.root)

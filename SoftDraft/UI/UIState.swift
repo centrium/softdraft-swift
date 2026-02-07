@@ -19,6 +19,8 @@ final class UIState: ObservableObject {
     @Published var splitViewVisibility: NavigationSplitViewVisibility = .all
     @Published var sidebarMode: SidebarMode = .collections
     @Published var isPreviewModeEnabled: Bool = false
+    @Published var isInsertingImage: Bool = false
+    @Published var imageInsertionError: String? = nil
 
     /// Derived convenience for readability elsewhere
     var isZenModeEnabled: Bool {

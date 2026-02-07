@@ -5,6 +5,60 @@ final class MarkdownASTParserTests: XCTestCase {
 
     private let parser = MarkdownASTParser()
 
+    func testBlockImageOnOwnLineWithoutBlankSeparation() {
+        let source = """
+        ![Screenshot of Softdraft](softdraft.png)
+        The above is an early screenshot of Softdraft.
+        """
+
+        let document = parser.parse(source)
+        let blocks = rootBlocks(in: document)
+
+        XCTAssertEqual(blocks.count, 2)
+
+        guard case .image(let image) = blocks.first else {
+            return XCTFail("Expected image block as first block")
+        }
+        XCTAssertEqual(image.source, "softdraft.png")
+        XCTAssertEqual(image.alt, "Screenshot of Softdraft")
+
+        guard case .paragraph(let inlines) = blocks.last else {
+            return XCTFail("Expected trailing paragraph block")
+        }
+        XCTAssertEqual(concatenatedText(inlines), "The above is an early screenshot of Softdraft.")
+    }
+
+    func testBlockImageWithBlankLinesStillParsesAsImage() {
+        let source = """
+        Paragraph text
+
+        ![Screenshot](softdraft.png)
+
+        More text
+        """
+
+        let document = parser.parse(source)
+        let blocks = rootBlocks(in: document)
+
+        XCTAssertEqual(blocks.count, 3)
+
+        guard case .paragraph(let firstParagraph) = blocks.first else {
+            return XCTFail("Expected leading paragraph block")
+        }
+        XCTAssertEqual(concatenatedText(firstParagraph), "Paragraph text")
+
+        guard case .image(let image) = blocks[1] else {
+            return XCTFail("Expected middle image block")
+        }
+        XCTAssertEqual(image.source, "softdraft.png")
+        XCTAssertEqual(image.alt, "Screenshot")
+
+        guard case .paragraph(let trailing) = blocks.last else {
+            return XCTFail("Expected trailing paragraph block")
+        }
+        XCTAssertEqual(concatenatedText(trailing), "More text")
+    }
+
     func testNestedEmphasisProducesInlineTree() {
         let source = "Before *outer **inner** outer* after"
         let document = parser.parse(source)

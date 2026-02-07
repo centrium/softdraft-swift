@@ -55,6 +55,8 @@ final class CommandRegistry: ObservableObject {
         register(deleteCollectionCommand)
         register(toggleZenModeCommand)
         register(togglePreviewModeCommand)
+        register(insertImageFromFileCommand)
+        register(handlePasteCommand)
         // others come later
     }
 

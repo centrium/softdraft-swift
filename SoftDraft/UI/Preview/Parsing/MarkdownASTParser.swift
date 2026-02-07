@@ -322,6 +322,10 @@ private struct BlockParser {
         var content: [String] = [line]
         index += 1
 
+        if let image = blockImageIfPresent(in: line) {
+            return .image(image)
+        }
+
         let firstLineIsPipe = line.trimmed().hasPrefix("|")
         let shouldIsolatePipeLine: Bool
         if firstLineIsPipe, index < lines.count {
@@ -340,6 +344,9 @@ private struct BlockParser {
             if shouldIsolatePipeLine {
                 break
             }
+            if blockImageIfPresent(in: next) != nil {
+                break
+            }
             if startsNewBlock(next) {
                 break
             }
@@ -354,6 +361,20 @@ private struct BlockParser {
             return .image(image)
         }
         return .paragraph(inlines: inlines)
+    }
+
+    private func blockImageIfPresent(in line: String) -> MarkdownImage? {
+        let trimmed = line.trimmed()
+        guard trimmed.hasPrefix("!["), trimmed.last == ")" else {
+            return nil
+        }
+
+        var inlineParser = InlineParser(text: trimmed)
+        let inlines = inlineParser.parse()
+        guard inlines.count == 1, case .image(let image) = inlines[0] else {
+            return nil
+        }
+        return image
     }
 
     private mutating func skipBlankLines() {

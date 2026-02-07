@@ -18,5 +18,27 @@ struct GlobalCommands: Commands {
             }
             .keyboardShortcut(.escape, modifiers: [])
         }
+
+        CommandGroup(replacing: .pasteboard) {
+            Button("Cut") {
+                Task { await EditorTextInsertion.cut() }
+            }
+            .keyboardShortcut("x", modifiers: [.command])
+
+            Button("Copy") {
+                Task { await EditorTextInsertion.copy() }
+            }
+            .keyboardShortcut("c", modifiers: [.command])
+
+            Button("Paste") {
+                commandRegistry.run("edit.paste")
+            }
+            .keyboardShortcut("v", modifiers: [.command])
+
+            Button("Select All") {
+                Task { await EditorTextInsertion.selectAll() }
+            }
+            .keyboardShortcut("a", modifiers: [.command])
+        }
     }
 }

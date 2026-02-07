@@ -18,6 +18,7 @@ struct LibraryLoadedView: View {
     @EnvironmentObject private var uiState: UIState
 
     @State private var collectionSummaries: [String: CollectionLandingSummary] = [:]
+    @State private var imageErrorDismissTask: Task<Void, Never>? = nil
 
     private var selectedCollection: String {
         selection.selectedCollectionID ?? "Inbox"
@@ -73,6 +74,28 @@ struct LibraryLoadedView: View {
                 .transition(.opacity)
         }
         .animation(.easeInOut(duration: 0.22), value: uiState.isZenModeEnabled)
+        .onChange(of: uiState.imageInsertionError) { _, newValue in
+            imageErrorDismissTask?.cancel()
+            guard let message = newValue, !message.isEmpty else { return }
+
+            imageErrorDismissTask = Task {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                guard !Task.isCancelled else { return }
+
+                await MainActor.run {
+                    if uiState.imageInsertionError == message {
+                        uiState.imageInsertionError = nil
+                    }
+                }
+            }
+        }
+        .onDisappear {
+            imageErrorDismissTask?.cancel()
+            imageErrorDismissTask = nil
+        }
+        .onChange(of: libraryManager.currentNoteText) { _, _ in
+            uiState.imageInsertionError = nil
+        }
     }
 }
 
@@ -165,6 +188,16 @@ private extension LibraryLoadedView {
                 .allowsHitTesting(true)
                 .transition(.opacity)
             }
+
+            if uiState.isInsertingImage {
+                imageInsertionOverlay
+                    .transition(.opacity)
+            }
+            
+            if let message = uiState.imageInsertionError {
+                imageInsertionErrorBanner(message: message)
+                    .transition(.opacity)
+            }
         }
     }
 }
@@ -192,6 +225,64 @@ private extension LibraryLoadedView {
             noteCount: notes.count,
             lastUpdated: latestDate
         )
+    }
+
+    var imageInsertionOverlay: some View {
+        VStack {
+            HStack {
+                Spacer()
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Inserting image…")
+                        .font(.footnote)
+                        .bold()
+                }
+                .padding(12)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .shadow(radius: 8, y: 3)
+            }
+            Spacer()
+        }
+        .padding(.top, 40)
+        .padding(.horizontal, 24)
+        .animation(.easeInOut(duration: 0.2), value: uiState.isInsertingImage)
+    }
+    
+    @ViewBuilder
+    func imageInsertionErrorBanner(message: String) -> some View {
+        VStack {
+            HStack {
+                Spacer()
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.secondary)
+                        .imageScale(.medium)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Image couldn’t be inserted")
+                            .font(.callout.weight(.semibold))
+                        Text(message)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(4)
+                    }
+                }
+                .padding(14)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color(nsColor: .controlBackgroundColor))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.08), radius: 12, y: 4)
+            }
+            Spacer()
+        }
+        .padding(.top, 40)
+        .padding(.horizontal, 24)
     }
 }
 

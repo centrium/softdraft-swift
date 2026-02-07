@@ -83,6 +83,13 @@ struct LibraryCommands: Commands {
             .keyboardShortcut("p", modifiers: [.command, .shift])
             .disabled(!commandRegistry.canExecute("view.togglePreviewMode"))
         }
+
+        CommandMenu("Insert") {
+            Button("Image…") {
+                commandRegistry.run("note.insertImage.fromFile")
+            }
+            .disabled(!commandRegistry.canExecute("note.insertImage.fromFile"))
+        }
     }
 
     private func openLibrary() {
