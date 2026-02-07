@@ -70,6 +70,9 @@ struct NotePreviewSurface: View {
         }
         
         let document = parser.parse(text)
+#if DEBUG
+        MarkdownPreviewDiagnostics.dump(source: text, document: document)
+#endif
         let renderer = PreviewRenderer(
             colorScheme: colorScheme,
             libraryURL: libraryManager.activeLibraryURL
@@ -90,3 +93,129 @@ struct NotePreviewSurface: View {
         }
     }
 }
+
+#if DEBUG
+private enum MarkdownPreviewDiagnostics {
+
+    static func dump(source: String, document: MarkdownDocument) {
+        print("=== Markdown Preview Diagnostics ===")
+        print("Raw markdown (character count: \(source.count)):")
+        print(String(reflecting: source))
+
+        let blocks = rootBlocks(in: document)
+        print("Top-level blocks: \(blocks.count)")
+
+        var paragraphIndex = 0
+        for (idx, block) in blocks.enumerated() {
+            print("Block[\(idx)]: \(block.displayName)")
+            block.dump(into: "  ")
+
+            if case .paragraph(let inlines) = block {
+                paragraphIndex += 1
+                print("  Paragraph[\(paragraphIndex)] text: \(concatenatedText(inlines))")
+            }
+        }
+
+        print("Total paragraphs: \(paragraphIndex)")
+        print("=== End Markdown Diagnostics ===")
+    }
+
+    private static func rootBlocks(in document: MarkdownDocument) -> [MarkdownBlock] {
+        if case .document(let blocks) = document.root {
+            return blocks
+        }
+        return [document.root]
+    }
+
+    private static func concatenatedText(_ inlines: [MarkdownInline]) -> String {
+        var result = ""
+        for inline in inlines {
+            switch inline {
+            case .text(let value):
+                result.append(value)
+            case .emphasis(let children),
+                 .strong(let children),
+                 .highlight(let children),
+                 .strikethrough(let children):
+                result.append(concatenatedText(children))
+            case .inlineCode(let code):
+                result.append(code)
+            case .mathInline(let value):
+                result.append(value)
+            case .link(let link):
+                result.append(concatenatedText(link.children))
+            case .image(let image):
+                result.append("![\(image.alt ?? "")]\(image.source)")
+            }
+        }
+        return result
+    }
+}
+
+private extension MarkdownBlock {
+    var displayName: String {
+        switch self {
+        case .paragraph: return "Paragraph"
+        case .heading(let level, _): return "Heading(level: \(level))"
+        case .blockQuote: return "BlockQuote"
+        case .list(let style, _): return "List(\(style))"
+        case .codeBlock(let language, _): return "CodeBlock(lang: \(language ?? "none"))"
+        case .thematicBreak: return "ThematicBreak"
+        case .table: return "Table"
+        case .image: return "Image"
+        case .mermaidBlock: return "Mermaid"
+        case .mathBlock: return "MathBlock"
+        case .document: return "Document"
+        }
+    }
+
+    func dump(into indent: String) {
+        switch self {
+        case .document(let blocks):
+            for block in blocks {
+                print(indent + block.displayName)
+                block.dump(into: indent + "  ")
+            }
+        case .paragraph(let inlines):
+            print(indent + "Inlines: \(inlines.count)")
+            for inline in inlines {
+                print(indent + "  - \(inline.displayName)")
+            }
+        case .heading(_, let inlines):
+            print(indent + "Heading inlines: \(inlines.count)")
+        case .blockQuote(let children):
+            print(indent + "Quote blocks: \(children.count)")
+        case .list(_, let items):
+            print(indent + "List items: \(items.count)")
+        case .codeBlock(_, let source):
+            print(indent + "Code length: \(source.count)")
+        case .thematicBreak:
+            break
+        case .table(let table):
+            print(indent + "Table rows: \(table.rows.count)")
+        case .image(let image):
+            print(indent + "Image alt: \(image.alt ?? "none")")
+        case .mermaidBlock(let source):
+            print(indent + "Mermaid length: \(source.count)")
+        case .mathBlock(let source):
+            print(indent + "Math length: \(source.count)")
+        }
+    }
+}
+
+private extension MarkdownInline {
+    var displayName: String {
+        switch self {
+        case .text(let value): return "Text(\(value))"
+        case .emphasis: return "Emphasis"
+        case .strong: return "Strong"
+        case .inlineCode(let code): return "InlineCode(\(code))"
+        case .link(let link): return "Link(\(link.destination))"
+        case .image(let image): return "Image(\(image.source))"
+        case .mathInline(let value): return "MathInline(\(value))"
+        case .highlight: return "Highlight"
+        case .strikethrough: return "Strikethrough"
+        }
+    }
+}
+#endif

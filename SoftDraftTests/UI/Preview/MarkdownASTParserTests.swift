@@ -59,6 +59,26 @@ final class MarkdownASTParserTests: XCTestCase {
         XCTAssertEqual(concatenatedText(trailing), "More text")
     }
 
+    func testUnicodeLineSeparatorSeparatesParagraphs() {
+        let separator = "\u{2028}"
+        let source = "At this point, the biggest risk isn’t missing features —\(separator)\(separator)it’s polishing forever instead of moving forward."
+
+        let document = parser.parse(source)
+        let blocks = rootBlocks(in: document)
+
+        XCTAssertEqual(blocks.count, 2)
+
+        guard case .paragraph(let first) = blocks.first else {
+            return XCTFail("Expected first block to be a paragraph")
+        }
+        XCTAssertEqual(concatenatedText(first), "At this point, the biggest risk isn’t missing features —")
+
+        guard case .paragraph(let second) = blocks.last else {
+            return XCTFail("Expected second block to be a paragraph")
+        }
+        XCTAssertEqual(concatenatedText(second), "it’s polishing forever instead of moving forward.")
+    }
+
     func testNestedEmphasisProducesInlineTree() {
         let source = "Before *outer **inner** outer* after"
         let document = parser.parse(source)
@@ -494,6 +514,44 @@ final class MarkdownASTParserTests: XCTestCase {
         XCTAssertNil(language)
         XCTAssertTrue(source.contains("line one"))
         XCTAssertTrue(source.contains("line two"))
+    }
+
+    func testParagraphAfterListIsEmitted() {
+        let source = """
+        # Heading
+
+        - First
+        - Second
+
+        Trailing paragraph.
+        """
+
+        let document = parser.parse(source)
+        let blocks = rootBlocks(in: document)
+
+        XCTAssertEqual(blocks.count, 3)
+        guard case .heading = blocks[0] else {
+            return XCTFail("Expected heading as first block")
+        }
+        guard case .list = blocks[1] else {
+            return XCTFail("Expected list as second block")
+        }
+        guard case .paragraph(let inlines) = blocks[2] else {
+            return XCTFail("Expected trailing paragraph block")
+        }
+        XCTAssertEqual(concatenatedText(inlines), "Trailing paragraph.")
+    }
+
+    func testParagraphAtEndOfFileWithoutTrailingNewlineIsParsed() {
+        let source = "Final paragraph without newline"
+        let document = parser.parse(source)
+        let blocks = rootBlocks(in: document)
+
+        XCTAssertEqual(blocks.count, 1)
+        guard case .paragraph(let inlines) = blocks.first else {
+            return XCTFail("Expected single paragraph block")
+        }
+        XCTAssertEqual(concatenatedText(inlines), source)
     }
 
     func testMermaidBlockCapturedVerbatim() {

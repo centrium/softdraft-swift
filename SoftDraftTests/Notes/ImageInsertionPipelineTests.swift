@@ -43,7 +43,7 @@ final class ImageInsertionPipelineTests: XCTestCase {
         let imageData = try makeImageData(width: 12, height: 12)
 
         let pasteboardName = NSPasteboard.Name("test-pipeline-\(UUID().uuidString)")
-        let pasteboard = await MainActor.run { NSPasteboard(name: pasteboardName)! }
+        let pasteboard = await MainActor.run { NSPasteboard(name: pasteboardName) }
         await MainActor.run {
             pasteboard.clearContents()
             pasteboard.setData(imageData, forType: .png)

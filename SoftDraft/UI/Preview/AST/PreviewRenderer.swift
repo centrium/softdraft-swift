@@ -123,6 +123,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
                     .lineSpacing(lineSpacing)
                     .padding(.bottom, paragraphSpacing)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
             )
 
         case .heading(let level, let inlines):

@@ -39,32 +39,8 @@ struct CollectionsSidebar: View {
 
     private var orderedCollections: [String] {
         let all = libraryManager.visibleCollections
-
-        guard !all.isEmpty else { return [] }
-
-        var ordered: [String] = []
-        var seen: Set<String> = []
-
-        if all.contains("Inbox") {
-            ordered.append("Inbox")
-            seen.insert("Inbox")
-        }
-
-        if
-            let selected = selection.selectedCollectionID,
-            all.contains(selected),
-            !seen.contains(selected)
-        {
-            ordered.append(selected)
-            seen.insert(selected)
-        }
-
-        for name in all where !seen.contains(name) {
-            ordered.append(name)
-            seen.insert(name)
-        }
-
-        return ordered
+        let nonInbox = all.filter { $0 != "Inbox" }
+        return nonInbox.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
 
     private var visibleCollections: [String] {
@@ -143,6 +119,31 @@ struct CollectionsSidebar: View {
     private func rows(selectionEnabled: Bool) -> some View {
 
         Section {
+            if libraryManager.visibleCollections.contains("Inbox") {
+                SidebarRow {
+                    Image(systemName: "tray")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.secondary.opacity(0.7))
+                    Text("Inbox")
+                        .font(.system(size: 14))
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.secondary.opacity(0.7))
+                        .help("Inbox is a built-in collection and can’t be renamed or deleted.")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .listRowBackground(selectionBackground(for: "Inbox"))
+                .listRowInsets(
+                    EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
+                )
+                .if(selectionEnabled) { view in
+                    view.tag("Inbox")
+                }
+
+                Divider()
+                    .listRowSeparator(.hidden)
+            }
+
             ForEach(visibleCollections, id: \.self) { name in
                 collectionRow(for: name)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -281,4 +282,3 @@ private extension View {
         if condition { transform(self) } else { self }
     }
 }
-

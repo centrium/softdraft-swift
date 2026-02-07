@@ -242,6 +242,7 @@ private struct BlockParser {
         let listKind = marker.kind
         let orderedStart = marker.start ?? 1
         index += 1
+        var encounteredBlankLineAfterItem = false
 
         func flushCurrent() {
             let raw = currentLines.joined(separator: "\n")
@@ -277,6 +278,7 @@ private struct BlockParser {
             }
 
             currentLines.removeAll(keepingCapacity: true)
+            encounteredBlankLineAfterItem = false
         }
 
         while !isAtEnd {
@@ -284,20 +286,27 @@ private struct BlockParser {
             if line.trimmed().isEmpty {
                 currentLines.append("")
                 index += 1
+                encounteredBlankLineAfterItem = true
                 continue
             }
             if let continuation = parseListContinuation(from: line) {
                 currentLines.append(continuation)
                 index += 1
+                encounteredBlankLineAfterItem = false
                 continue
             }
             if let nextMarker = parseListMarker(from: line), nextMarker.kind == listKind {
                 flushCurrent()
                 currentLines.append(nextMarker.content)
                 index += 1
+                encounteredBlankLineAfterItem = false
                 continue
             }
             if startsNewBlock(line) {
+                break
+            }
+            let beginsWithIndent = line.first == " " || line.first == "\t"
+            if encounteredBlankLineAfterItem || !beginsWithIndent {
                 break
             }
             currentLines.append(line)
@@ -619,13 +628,27 @@ private extension MarkdownTableAlignment {
 
 private extension String {
     func trimmed() -> String {
-        trimmingCharacters(in: .whitespaces)
+        trimmingCharacters(in: .markdownWhitespace)
     }
+}
+
+private extension CharacterSet {
+    static let markdownWhitespace: CharacterSet = {
+        var set = CharacterSet.whitespacesAndNewlines
+        set.insert(charactersIn: "\u{200B}\u{200C}\u{200D}\u{FEFF}")
+        return set
+    }()
 }
 
 private extension String {
     func normalizedMarkdownLines() -> [String] {
-        let normalized = replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+        var normalized = replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+
+        let unicodeSeparators: [Character] = ["\u{2028}", "\u{2029}", "\u{0085}"]
+        for separator in unicodeSeparators {
+            normalized = normalized.replacingOccurrences(of: String(separator), with: "\n")
+        }
+
         let segments = normalized.split(separator: "\n", omittingEmptySubsequences: false)
         if segments.isEmpty {
             return [""]
