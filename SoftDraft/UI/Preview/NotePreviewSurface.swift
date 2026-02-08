@@ -12,6 +12,7 @@ struct NotePreviewSurface: View {
     private static let placeholderText = "Start typing to see the preview."
     private let debounceDelay: UInt64 = 140_000_000 // ~140ms
     private let parser = MarkdownASTParser()
+    private let normalizer = MarkdownASTNormalizer()
     
     var body: some View {
         ZStack {
@@ -69,7 +70,7 @@ struct NotePreviewSurface: View {
             return AnyView(placeholderView)
         }
         
-        let document = parser.parse(text)
+        let document = normalizer.normalize(parser.parse(text))
 #if DEBUG
         MarkdownPreviewDiagnostics.dump(source: text, document: document)
 #endif

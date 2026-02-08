@@ -59,6 +59,31 @@ final class MarkdownASTParserTests: XCTestCase {
         XCTAssertEqual(concatenatedText(trailing), "More text")
     }
 
+    func testInlineImageInsideParagraphRemainsInline() {
+        let source = "Text before ![Example](https://example.com/image.png) text after"
+
+        let document = parser.parse(source)
+        let blocks = rootBlocks(in: document)
+
+        guard blocks.count == 1,
+              case .paragraph(let inlines) = blocks.first else {
+            return XCTFail("Expected single paragraph block")
+        }
+
+        XCTAssertEqual(inlines.count, 3)
+        guard case .text("Text before ") = inlines[0] else {
+            return XCTFail("Expected leading text inline")
+        }
+        guard case .image(let image) = inlines[1] else {
+            return XCTFail("Expected inline image")
+        }
+        XCTAssertEqual(image.source, "https://example.com/image.png")
+        XCTAssertEqual(image.alt, "Example")
+        guard case .text(" text after") = inlines[2] else {
+            return XCTFail("Expected trailing text inline")
+        }
+    }
+
     func testUnicodeLineSeparatorSeparatesParagraphs() {
         let separator = "\u{2028}"
         let source = "At this point, the biggest risk isn’t missing features —\(separator)\(separator)it’s polishing forever instead of moving forward."
