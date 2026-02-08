@@ -27,6 +27,7 @@ final class LibraryManager: ObservableObject {
     @Published private(set) var visibleCollectionID: String?
     @Published private(set) var externalChangeTokens: [String: UUID] = [:]
     @Published private(set) var visibleCollections: [String] = []
+    
     @Published var currentNoteText: String = ""
     
     private var cancellables: Set<AnyCancellable> = []
@@ -39,10 +40,11 @@ final class LibraryManager: ObservableObject {
     private let internalWriteCooldown: TimeInterval = 1.0
     // Tracks whether we still need to restore the persisted selection for this library.
     private var needsInitialCollectionSelection = false
+    private var boundSearchIndex: SearchIndex?
 
     // MARK: - Startup
 
-    func bind(selection: SelectionModel) {
+    func bind(selection: SelectionModel) {boundSearchIndex.map { rebuildSearchIndex($0) }
         self.selection = selection
 
         // Persist last active collection when selection changes
@@ -64,7 +66,23 @@ final class LibraryManager: ObservableObject {
             }
             .store(in: &cancellables)
     }
+    
+    func bind(searchIndex: SearchIndex) {
+        print("✅ bind(searchIndex:) CALLED")
 
+        self.boundSearchIndex = searchIndex
+
+        // 🔑 CRITICAL: rebuild immediately with current state
+        rebuildSearchIndex(searchIndex)
+
+        $visibleNotes
+            .sink { [weak self] _ in
+                guard let self, let index = self.boundSearchIndex else { return }
+                self.rebuildSearchIndex(index)
+            }
+            .store(in: &cancellables)
+    }
+    
     func resolveInitialLibrary() async {
         let config = await AppConfigStore.load()
 
@@ -160,6 +178,7 @@ final class LibraryManager: ObservableObject {
 
             guard visibleCollectionID == collection else { return }
             visibleNotes = sortNotes(fetched)
+            boundSearchIndex.map { rebuildSearchIndex($0) }
         } catch {
             guard visibleCollectionID == collection else { return }
             visibleNotes = []
@@ -864,4 +883,20 @@ final class LibraryManager: ObservableObject {
     func collectionID(for noteID: String) -> String {
         noteID.split(separator: "/").first.map(String.init) ?? "Inbox"
     }
+    
+    func rebuildSearchIndex(_ searchIndex: SearchIndex) {
+        let entries: [SearchIndexEntry] = visibleNotes.compactMap { note in
+            guard let markdown = markdownForNote(note) else { return nil }
+
+            return SearchExtractor.extract(
+                noteID: note.id,
+                title: note.title,
+                markdown: markdown
+            )
+        }
+        
+        print("🔍 SEARCH INDEXED:", entries.count, "notes")
+        searchIndex.replaceAll(entries)
+    }
+
 }

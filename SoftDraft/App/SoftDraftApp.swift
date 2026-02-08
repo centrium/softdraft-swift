@@ -14,18 +14,21 @@ struct SoftdraftApp: App {
     @StateObject private var selection: SelectionModel
     @StateObject private var uiState: UIState
     @StateObject private var commandRegistry: CommandRegistry
-    @StateObject private var searchIndex = SearchIndex()
+    @StateObject private var searchIndex: SearchIndex
 
     init() {
         let libraryManager = LibraryManager()
         let selection = SelectionModel()
         let uiState = UIState()
+        let searchIndex = SearchIndex()
 
         libraryManager.bind(selection: selection)
+        libraryManager.bind(searchIndex: searchIndex)
 
         _libraryManager = StateObject(wrappedValue: libraryManager)
         _selection = StateObject(wrappedValue: selection)
         _uiState = StateObject(wrappedValue: uiState)
+        _searchIndex = StateObject(wrappedValue: searchIndex)
 
         _commandRegistry = StateObject(
             wrappedValue: CommandRegistry(
