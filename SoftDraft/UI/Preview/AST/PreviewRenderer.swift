@@ -123,7 +123,6 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
                     .font(bodyFont)
                     .lineSpacing(lineSpacing)
                     .padding(.bottom, paragraphSpacing)
-                    .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
             )
 
@@ -138,19 +137,21 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
 
         case .blockQuote(let children):
             return AnyView(
-                HStack(alignment: .center, spacing: 12) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(dividerColor)
-                        .frame(width: 3)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(children.indices, id: \.self) { i in
-                            renderBlock(children[i], depth: depth)
-                        }
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(children.indices, id: \.self) { i in
+                        renderBlock(children[i], depth: depth)
                     }
                 }
-                .padding(.horizontal, 12)
+                // indent the quote content
+                .padding(.leading, 16)
+                // draw the quote bar WITHOUT affecting layout width
+                .overlay(alignment: .leading) {
+                    Rectangle()
+                        .fill(dividerColor)
+                        .frame(width: 3)
+                }
                 .padding(.bottom, paragraphSpacing)
+                .font(bodyFont)
             )
 
         case .list(let style, let items):

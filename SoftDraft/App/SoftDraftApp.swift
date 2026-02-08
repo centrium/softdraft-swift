@@ -14,6 +14,7 @@ struct SoftdraftApp: App {
     @StateObject private var selection: SelectionModel
     @StateObject private var uiState: UIState
     @StateObject private var commandRegistry: CommandRegistry
+    @StateObject private var searchIndex = SearchIndex()
 
     init() {
         let libraryManager = LibraryManager()
@@ -44,6 +45,7 @@ struct SoftdraftApp: App {
                 .environmentObject(selection)
                 .environmentObject(uiState)
                 .environmentObject(commandRegistry)
+                .environmentObject(searchIndex)
                 .task {
                     await libraryManager.resolveInitialLibrary()
                 }
