@@ -14,8 +14,7 @@ struct LibraryRailView: View {
     @EnvironmentObject private var selection: SelectionModel
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var uiState: UIState
-    @State private var searchText: String = ""
-
+    
     private var selectedCollection: String {
         selection.selectedCollectionID ?? "Inbox"
     }
@@ -24,18 +23,6 @@ struct LibraryRailView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-
-            // ───────── Search ─────────
-            TextField("Search", text: $searchText)
-                .textFieldStyle(.plain)
-                .padding(8)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.primary.opacity(0.06))
-                )
-                .padding(.horizontal, 8)
-                .padding(.top, 6)
-                .padding(.bottom, 10)
 
             // ───────── Mode Slot (Collections / Tags) ─────────
             VStack(alignment: .leading, spacing: 0) {

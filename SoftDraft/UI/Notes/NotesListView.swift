@@ -42,6 +42,10 @@ struct NotesListView: View {
 
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var commandRegistry: CommandRegistry
+    @EnvironmentObject private var searchIndex: SearchIndex
+
+    @State private var searchQuery: String = ""
+    @State private var searchResults: [SearchResult] = []
     
     private var collections: [String] {
         libraryManager.allCollections()
@@ -57,92 +61,142 @@ struct NotesListView: View {
     var body: some View {
         ZStack {
 
-            // ─────────────────────────────
-            // Main notes list
-            // ─────────────────────────────
-            List(selection: listSelectionBinding) {
-                listTopSpacing
+            VStack(spacing: 0) {
+                TextField("Search notes", text: $searchQuery)
+                    .textFieldStyle(.plain)
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.primary.opacity(0.06))
+                    )
+                    .padding(.horizontal, 8)
+                    .padding(.top, 6)
+                    .padding(.bottom, 4)
 
-                if libraryManager.visibleNotes.isEmpty {
-                    HStack {
-                        Spacer()
-                        Button {
-                            commandRegistry.run("note.create")
-                        } label: {
-                            Label("New note", systemImage: "plus")
-                                .font(.system(size: 14, weight: .medium))
-                                .opacity(0.8)
-                        }
-                        .buttonStyle(.plain)
-                        Spacer()
+                    .onChange(of: searchQuery) { _, query in
+                        searchResults = searchIndex.search(query)
                     }
-                    .padding(.vertical, 12)
-                    .listRowSeparator(.hidden)
-                } else {
-                    ForEach(NotesSection.allCases, id: \.self) { section in
-                        if let notes = groupedNotes[section], !notes.isEmpty {
+                
+                List(selection: listSelectionBinding) {
+                    if searchQuery.isEmpty {
+                        listTopSpacing
+                    }
+                    
+                    if !searchQuery.isEmpty {
 
-                            Section {
-                                ForEach(notes, id: \.id) { note in
-                                    NoteRow(note: note)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .frame(minHeight: 44) // keeps selection stable
-                                        .listRowBackground(
-                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                                .fill(
-                                                    selection.selectedNoteID == note.id
-                                                    ? Color.primary.opacity(0.08)
-                                                    : Color.clear
-                                                )
-                                        )
-                                        .listRowInsets(
-                                            EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
-                                        )
-                                        .tag(note.id)
+                        // ───────── Search results ─────────
+                        ForEach(searchResults) { result in
+                            if let note = libraryManager.visibleNotes.first(where: { $0.id == result.id }) {
+                                NoteRow(note: note)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .frame(minHeight: 44)
+                                    .listRowBackground(
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            .fill(
+                                                selection.selectedNoteID == note.id
+                                                ? Color.primary.opacity(0.08)
+                                                : Color.clear
+                                            )
+                                    )
+                                    .listRowInsets(
+                                        EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
+                                    )
+                                    .tag(note.id)
+                                    .onTapGesture {
+                                        selection.selectedNoteID = note.id
+                                        searchQuery = ""
+                                        searchResults = []
+                                    }
+                            }
+                        }
+
+                    } else if libraryManager.visibleNotes.isEmpty {
+                        HStack {
+                            Spacer()
+                            Button {
+                                commandRegistry.run("note.create")
+                            } label: {
+                                Label("New note", systemImage: "plus")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .opacity(0.8)
+                            }
+                            .buttonStyle(.plain)
+                            Spacer()
+                        }
+                        .padding(.vertical, 12)
+                        .listRowSeparator(.hidden)
+                    } else {
+                        ForEach(NotesSection.allCases, id: \.self) { section in
+                            if let notes = groupedNotes[section], !notes.isEmpty {
+
+                                Section {
+                                    ForEach(notes, id: \.id) { note in
+                                        NoteRow(note: note)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .frame(minHeight: 44) // keeps selection stable
+                                            .listRowBackground(
+                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                    .fill(
+                                                        selection.selectedNoteID == note.id
+                                                        ? Color.primary.opacity(0.08)
+                                                        : Color.clear
+                                                    )
+                                            )
+                                            .listRowInsets(
+                                                EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
+                                            )
+                                            .tag(note.id)
+                                    }
+                                } header: {
+                                    Text(section.rawValue)
+                                        .font(.caption)
+                                        .tracking(0.6)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.leading, 2)
                                 }
-                            } header: {
-                                Text(section.rawValue)
-                                    .font(.caption)
-                                    .tracking(0.6)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.leading, 2)
                             }
                         }
                     }
                 }
-            }
-            .navigationTitle(collection)
-            .task {
-                await libraryManager.loadNotes(
-                    libraryURL: libraryURL,
-                    collection: collection
-                )
-                prefetchInitialNotes()
-            }
-            .onChange(of: collection) { _, newCollection in
-                selection.selectCollection(newCollection)
-
-                Task {
+                .listStyle(.sidebar)
+                .navigationTitle(collection)
+                .task {
                     await libraryManager.loadNotes(
                         libraryURL: libraryURL,
-                        collection: newCollection
+                        collection: collection
                     )
                     prefetchInitialNotes()
                 }
-            }
-            .onAppear {
-                syncSelectionFromModel()
-            }
-            .onChange(of: selection.selectedNoteID) { _, newValue in
-                guard listSelection != newValue else { return }
-                listSelection = newValue
-            }
-            .onChange(of: listSelection) { _, newValue in
-                guard selection.selectedNoteID != newValue else { return }
-                Task { @MainActor in
-                    selection.selectedNoteID = newValue
+                .onChange(of: collection) { _, newCollection in
+                    searchQuery = ""
+                    searchResults = []
+                    selection.selectCollection(newCollection)
+                    Task {
+                        await libraryManager.loadNotes(
+                            libraryURL: libraryURL,
+                            collection: newCollection
+                        )
+                        prefetchInitialNotes()
+                    }
+                    
+                }
+                .onAppear {
+                    syncSelectionFromModel()
+                }
+                .onChange(of: selection.selectedNoteID) { _, newValue in
+                    guard listSelection != newValue else { return }
+                    listSelection = newValue
+                }
+                .onChange(of: listSelection) { _, newValue in
+                    guard selection.selectedNoteID != newValue else { return }
+                    Task { @MainActor in
+                        selection.selectedNoteID = newValue
+                    }
                 }
             }
+            
+            
+            
 
             // ─────────────────────────────
             // Move Note Picker (overlay)
