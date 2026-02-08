@@ -19,6 +19,7 @@ struct LibraryLoadedView: View {
 
     @State private var collectionSummaries: [String: CollectionLandingSummary] = [:]
     @State private var imageErrorDismissTask: Task<Void, Never>? = nil
+    @FocusState private var editorFocused: Bool
 
     private var selectedCollection: String {
         selection.selectedCollectionID ?? "Inbox"
@@ -150,6 +151,12 @@ private extension LibraryLoadedView {
                 )
                 .animation(.easeInOut(duration: 0.25),
                            value: uiState.isPreviewModeEnabled)
+                .focused($editorFocused)
+                .onChange(of: uiState.isPreviewModeEnabled) { isPreview in
+                    if isPreview {
+                        editorFocused = false
+                    }
+                }
 
             // ───────── Preview overlay ─────────
             previewStack
@@ -163,6 +170,7 @@ private extension LibraryLoadedView {
                     .easeInOut(duration: 0.25),
                     value: uiState.isPreviewModeEnabled
                 )
+                .focusable(false)
         }
     }
 }

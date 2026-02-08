@@ -114,6 +114,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
                         renderCoverHeadline(for: block)
                     }
                 )
+                .focusable(false)
             )
 
         case .paragraph(let inlines):
