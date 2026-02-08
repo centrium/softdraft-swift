@@ -37,6 +37,11 @@ struct NotesListView: View {
     let libraryURL: URL
     let collection: String
 
+    private enum FocusField {
+        case search
+        case results
+    }
+
     @EnvironmentObject private var selection: SelectionModel
     @State private var listSelection: String?
 
@@ -46,6 +51,11 @@ struct NotesListView: View {
 
     @State private var searchQuery: String = ""
     @State private var searchResults: [SearchResult] = []
+    @State private var searchSelection: String? = nil
+    @State private var isSearching: Bool = false
+    @State private var searchTask: Task<Void, Never>? = nil
+    @State private var hoveredSearchResult: String? = nil
+    @FocusState private var focusedField: FocusField?
     
     private var collections: [String] {
         libraryManager.allCollections()
@@ -57,56 +67,86 @@ struct NotesListView: View {
             by: { section(for: $0.modifiedAt) }
         )
     }
+
+    private var isSearchActive: Bool {
+        !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var activeSelectionBinding: Binding<String?> {
+        if isSearchActive {
+            return Binding(
+                get: { searchSelection },
+                set: { newValue in
+                    guard searchSelection != newValue else { return }
+                    searchSelection = newValue
+                }
+            )
+        }
+
+        return listSelectionBinding
+    }
     
     var body: some View {
         ZStack {
 
             VStack(spacing: 0) {
-                TextField("Search notes", text: $searchQuery)
-                    .textFieldStyle(.plain)
-                    .padding(8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.primary.opacity(0.06))
-                    )
-                    .padding(.horizontal, 8)
-                    .padding(.top, 6)
-                    .padding(.bottom, 4)
+                searchField
 
-                    .onChange(of: searchQuery) { _, query in
-                        searchResults = searchIndex.search(query)
-                    }
-                
-                List(selection: listSelectionBinding) {
-                    if searchQuery.isEmpty {
+                List(selection: activeSelectionBinding) {
+                    if !isSearchActive {
                         listTopSpacing
                     }
-                    
-                    if !searchQuery.isEmpty {
+
+                    if isSearchActive {
 
                         // ───────── Search results ─────────
-                        ForEach(searchResults) { result in
-                            if let note = libraryManager.visibleNotes.first(where: { $0.id == result.id }) {
-                                NoteRow(note: note)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .frame(minHeight: 44)
-                                    .listRowBackground(
-                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                            .fill(
-                                                selection.selectedNoteID == note.id
-                                                ? Color.primary.opacity(0.08)
-                                                : Color.clear
-                                            )
-                                    )
-                                    .listRowInsets(
-                                        EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
-                                    )
-                                    .tag(note.id)
-                                    .onTapGesture {
-                                        selection.selectedNoteID = note.id
-                                        searchQuery = ""
-                                        searchResults = []
-                                    }
+                        if isSearching && searchResults.isEmpty {
+                            SearchStatusRow(label: "Searching...")
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(
+                                    EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
+                                )
+                                .transition(.opacity)
+                        } else if searchResults.isEmpty {
+                            SearchEmptyState(
+                                query: searchQuery,
+                                collection: collection
+                            )
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(
+                                EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12)
+                            )
+                            .transition(.opacity)
+                        } else {
+                            ForEach(displayedSearchResults) { result in
+                                SearchResultRow(
+                                    note: result.note,
+                                    hint: result.hint,
+                                    isSelected: searchSelection == result.id
+                                )
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .frame(minHeight: 48)
+                                .listRowBackground(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .fill(
+                                            searchSelection == result.id
+                                            ? Color.primary.opacity(0.12)
+                                            : result.isHovered
+                                            ? Color.primary.opacity(0.06)
+                                            : Color.clear
+                                        )
+                                )
+                                .listRowInsets(
+                                    EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
+                                )
+                                .listRowSeparator(.hidden)
+                                .tag(result.id)
+                                .onHover { hovering in
+                                    updateHoverState(for: result.id, hovering: hovering)
+                                }
+                                .onTapGesture {
+                                    openSearchResult(result.id)
+                                }
                             }
                         }
 
@@ -158,8 +198,26 @@ struct NotesListView: View {
                         }
                     }
                 }
+                .focused($focusedField, equals: .results)
                 .listStyle(.sidebar)
                 .navigationTitle(collection)
+                .onExitCommand {
+                    if isSearchActive {
+                        clearSearch()
+                    }
+                }
+                .onKeyPress(.return) {
+                    guard focusedField == .results, isSearchActive else {
+                        return .ignored
+                    }
+
+                    if let target = searchSelection ?? displayedSearchResults.first?.id {
+                        openSearchResult(target)
+                        return .handled
+                    }
+
+                    return .ignored
+                }
                 .task {
                     await libraryManager.loadNotes(
                         libraryURL: libraryURL,
@@ -168,8 +226,7 @@ struct NotesListView: View {
                     prefetchInitialNotes()
                 }
                 .onChange(of: collection) { _, newCollection in
-                    searchQuery = ""
-                    searchResults = []
+                    clearSearch()
                     selection.selectCollection(newCollection)
                     Task {
                         await libraryManager.loadNotes(
@@ -188,11 +245,13 @@ struct NotesListView: View {
                     listSelection = newValue
                 }
                 .onChange(of: listSelection) { _, newValue in
+                    guard !isSearchActive else { return }
                     guard selection.selectedNoteID != newValue else { return }
                     Task { @MainActor in
                         selection.selectedNoteID = newValue
                     }
                 }
+                .animation(.easeOut(duration: 0.12), value: searchResults)
             }
             
             
@@ -241,6 +300,94 @@ struct NotesListView: View {
         listSelection = selection.selectedNoteID
     }
 
+    private func scheduleSearch(for query: String) {
+        searchTask?.cancel()
+
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            isSearching = false
+            searchResults = []
+            searchSelection = nil
+            hoveredSearchResult = nil
+            return
+        }
+
+        isSearching = true
+
+        searchTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard !Task.isCancelled else { return }
+
+            let results = searchIndex.search(trimmed)
+            isSearching = false
+            updateSearchResults(results)
+        }
+    }
+
+    private func updateSearchResults(_ results: [SearchResult]) {
+        searchResults = results
+        hoveredSearchResult = nil
+
+        if let currentSelection = searchSelection,
+           displayedSearchResults.contains(where: { $0.id == currentSelection }) {
+            return
+        }
+
+        searchSelection = displayedSearchResults.first?.id
+    }
+
+    private func clearSearch() {
+        searchTask?.cancel()
+        searchQuery = ""
+        searchResults = []
+        searchSelection = nil
+        hoveredSearchResult = nil
+        isSearching = false
+        syncSelectionFromModel()
+    }
+
+    private func openSearchResult(_ id: String) {
+        selection.selectedNoteID = id
+        listSelection = id
+        clearSearch()
+    }
+
+    private func handleSearchMoveCommand(_ direction: MoveCommandDirection) {
+        guard isSearchActive else { return }
+        guard !displayedSearchResults.isEmpty else { return }
+
+        let ids = displayedSearchResults.map(\.id)
+        let currentIndex = ids.firstIndex(of: searchSelection ?? "")
+
+        let nextIndex: Int
+        switch direction {
+        case .down:
+            if let currentIndex {
+                nextIndex = min(currentIndex + 1, ids.count - 1)
+            } else {
+                nextIndex = 0
+            }
+        case .up:
+            if let currentIndex {
+                nextIndex = max(currentIndex - 1, 0)
+            } else {
+                nextIndex = ids.count - 1
+            }
+        default:
+            return
+        }
+
+        searchSelection = ids[nextIndex]
+    }
+
+    private func updateHoverState(for id: String, hovering: Bool) {
+        if hovering {
+            hoveredSearchResult = id
+        } else if hoveredSearchResult == id {
+            hoveredSearchResult = nil
+        }
+    }
+
     private func prefetchInitialNotes() {
         guard let libraryURL = libraryManager.activeLibraryURL else { return }
         guard libraryManager.visibleCollectionID == collection else { return }
@@ -268,6 +415,189 @@ struct NotesListView: View {
             .listRowSeparator(.hidden)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            TextField("Search notes", text: $searchQuery)
+                .textFieldStyle(.plain)
+                .focused($focusedField, equals: .search)
+                .onChange(of: searchQuery) { _, query in
+                    scheduleSearch(for: query)
+                }
+                .onSubmit {
+                    if let target = searchSelection ?? displayedSearchResults.first?.id {
+                        openSearchResult(target)
+                    }
+                }
+                .onMoveCommand { direction in
+                    handleSearchMoveCommand(direction)
+                }
+
+            if !searchQuery.isEmpty {
+                Button {
+                    clearSearch()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(
+                    focusedField == .search
+                    ? Color.accentColor.opacity(0.4)
+                    : Color.primary.opacity(0.08),
+                    lineWidth: 1
+                )
+        )
+        .padding(.horizontal, 8)
+        .padding(.top, 6)
+        .padding(.bottom, 4)
+        .onExitCommand {
+            if isSearchActive {
+                clearSearch()
+            }
+        }
+    }
+
+    private var displayedSearchResults: [SearchDisplayResult] {
+        let notesByID = Dictionary(
+            uniqueKeysWithValues: libraryManager.visibleNotes.map { ($0.id, $0) }
+        )
+
+        return searchResults.compactMap { result in
+            guard let note = notesByID[result.id] else { return nil }
+            return SearchDisplayResult(
+                id: result.id,
+                note: note,
+                score: result.score,
+                hint: SearchHint(matchHint: result.matchHint),
+                isHovered: hoveredSearchResult == result.id
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.score != rhs.score { return lhs.score > rhs.score }
+            let leftRank = lhs.hint?.rank ?? 3
+            let rightRank = rhs.hint?.rank ?? 3
+            if leftRank != rightRank { return leftRank < rightRank }
+            if lhs.note.modifiedAt != rhs.note.modifiedAt {
+                return lhs.note.modifiedAt > rhs.note.modifiedAt
+            }
+            return lhs.note.title.localizedCaseInsensitiveCompare(rhs.note.title) == .orderedAscending
+        }
+    }
+}
+
+private struct SearchHint: Equatable {
+    let label: String
+    let rank: Int
+
+    init?(matchHint: String?) {
+        guard let hint = matchHint else { return nil }
+        if hint == "Title" {
+            label = "Title match"
+            rank = 0
+        } else if hint == "Body" {
+            label = "Body match"
+            rank = 2
+        } else {
+            label = "Heading match"
+            rank = 1
+        }
+    }
+}
+
+private struct SearchDisplayResult: Identifiable {
+    let id: String
+    let note: NoteSummary
+    let score: Int
+    let hint: SearchHint?
+    let isHovered: Bool
+}
+
+private struct SearchResultRow: View {
+    let note: NoteSummary
+    let hint: SearchHint?
+    let isSelected: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(note.title)
+                .font(.body)
+                .lineLimit(1)
+
+            HStack(spacing: 8) {
+                Text(note.modifiedAt.formatted(date: .abbreviated, time: .omitted))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if let hint {
+                    Text(hint.label)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(
+                                    isSelected
+                                    ? Color.primary.opacity(0.18)
+                                    : Color.primary.opacity(0.08)
+                                )
+                        )
+                }
+
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private struct SearchStatusRow: View {
+    let label: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.small)
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 6)
+    }
+}
+
+private struct SearchEmptyState: View {
+    let query: String
+    let collection: String
+
+    var body: some View {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        VStack(alignment: .leading, spacing: 6) {
+            Text("No matches for \"\(trimmed)\"")
+                .font(.body.weight(.medium))
+            Text("Try a different word in \(collection).")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 6)
     }
 }
 
