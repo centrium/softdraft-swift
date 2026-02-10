@@ -53,6 +53,7 @@ final class CommandRegistry: ObservableObject {
         register(confirmRenameCollectionCommand)
         register(cancelRenameCollectionCommand)
         register(deleteCollectionCommand)
+        register(rebuildLibraryIndexCommand)
         register(toggleZenModeCommand)
         register(togglePreviewModeCommand)
         register(insertImageFromFileCommand)

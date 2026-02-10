@@ -40,6 +40,13 @@ struct LibraryCommands: Commands {
                 openLibrary()
             }
             .keyboardShortcut("o", modifiers: [.command])
+
+            Divider()
+
+            Button("Rebuild Library Index") {
+                commandRegistry.run("library.index.rebuild")
+            }
+            .disabled(!commandRegistry.canExecute("library.index.rebuild"))
         }
         
         // --------- Collection commands --------

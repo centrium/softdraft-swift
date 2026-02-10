@@ -947,21 +947,42 @@ final class LibraryManager: ObservableObject {
             withIntermediateDirectories: true
         )
 
-        if
-            let data = try? Data(contentsOf: url),
-            let index = try? JSONDecoder().decode(LibraryIndex.self, from: data)
-        {
-            libraryIndex = index
-        } else {
-            libraryIndex = LibraryIndex(
-                version: 1,
-                libraryID: UUID().uuidString,
-                lastUpdated: Date(),
-                collections: [:],
-                notes: [:]
-            )
-            persistLibraryIndex(libraryURL: libraryURL)
+        let data = try? Data(contentsOf: url)
+        let decodedIndex = data.flatMap {
+            try? JSONDecoder().decode(LibraryIndex.self, from: $0)
         }
+
+        if let index = decodedIndex,
+           LibraryIndexBuilder.isSupportedVersion(index.version) {
+            libraryIndex = index
+            return
+        }
+
+        let existingLibraryID = decodedIndex?.libraryID
+            ?? data.flatMap { LibraryIndexBuilder.extractLibraryID(from: $0) }
+
+        libraryIndex = nil
+
+        Task { [weak self] in
+            guard let self else { return }
+            await self.rebuildLibraryIndex(
+                libraryURL: libraryURL,
+                existingLibraryID: existingLibraryID
+            )
+        }
+    }
+
+    func rebuildLibraryIndex(
+        libraryURL: URL,
+        existingLibraryID: String? = nil
+    ) async {
+        let libraryID = existingLibraryID ?? libraryIndex?.libraryID
+        let rebuilt = await LibraryIndexBuilder.build(
+            libraryURL: libraryURL,
+            existingLibraryID: libraryID
+        )
+        libraryIndex = rebuilt
+        persistLibraryIndex(libraryURL: libraryURL)
     }
     
     private func persistLibraryIndex(libraryURL: URL) {
