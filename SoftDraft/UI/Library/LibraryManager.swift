@@ -470,6 +470,9 @@ final class LibraryManager: ObservableObject {
             return nil
         }
 
+        updateLibraryIndexAfterCreateCollection(collectionID: collectionID)
+        persistLibraryIndex(libraryURL: libraryURL)
+
         await reloadCollections(libraryURL: libraryURL)
 
         return collectionID
@@ -484,15 +487,20 @@ final class LibraryManager: ObservableObject {
         beginInternalWrite()
         defer { endInternalWrite() }
 
+        let cleanID: String
         do {
-            try _ = CollectionStore.rename(
+            cleanID = try CollectionStore.rename(
                 libraryURL: libraryURL,
                 oldName: oldID,
                 newName: newID
             )
         } catch {
             print("Failed to rename collection:", error)
+            return
         }
+
+        updateLibraryIndexAfterRenameCollection(from: oldID, to: cleanID)
+        persistLibraryIndex(libraryURL: libraryURL)
 
         await reloadCollections(libraryURL: libraryURL)
     }
@@ -525,6 +533,9 @@ final class LibraryManager: ObservableObject {
             print("Failed to delete collection:", error)
             return
         }
+
+        updateLibraryIndexAfterDeleteCollection(collectionID: collectionID)
+        persistLibraryIndex(libraryURL: libraryURL)
 
         await reloadCollections(libraryURL: libraryURL)
 
@@ -973,6 +984,87 @@ final class LibraryManager: ObservableObject {
     
     private func markLibraryIndexDirty() {
         isLibraryIndexDirty = true
+    }
+
+    private func updateLibraryIndexAfterCreateCollection(
+        collectionID: String
+    ) {
+        guard var index = libraryIndex else { return }
+
+        if index.collections[collectionID] == nil {
+            index.collections[collectionID] = CollectionIndex(
+                id: collectionID,
+                noteIDs: []
+            )
+        }
+
+        index.lastUpdated = Date()
+        libraryIndex = index
+        markLibraryIndexDirty()
+    }
+
+    private func updateLibraryIndexAfterRenameCollection(
+        from oldID: String,
+        to newID: String
+    ) {
+        guard var index = libraryIndex else { return }
+        guard oldID != newID else { return }
+
+        let oldCollection = index.collections.removeValue(forKey: oldID)
+        let oldNoteIDs = oldCollection?.noteIDs ?? []
+
+        var updatedNoteIDs: [String] = []
+        updatedNoteIDs.reserveCapacity(oldNoteIDs.count)
+
+        for noteID in oldNoteIDs {
+            let newNoteID: String
+            if noteID.hasPrefix("\(oldID)/") {
+                let rest = noteID.dropFirst(oldID.count + 1)
+                newNoteID = "\(newID)/\(rest)"
+            } else {
+                newNoteID = noteID
+            }
+
+            if let oldNote = index.notes.removeValue(forKey: noteID) {
+                let updatedNote = NoteIndex(
+                    id: newNoteID,
+                    path: newNoteID,
+                    title: oldNote.title,
+                    modified: Date()
+                )
+                index.notes[newNoteID] = updatedNote
+            }
+
+            updatedNoteIDs.append(newNoteID)
+        }
+
+        index.collections[newID] = CollectionIndex(
+            id: newID,
+            noteIDs: updatedNoteIDs
+        )
+
+        index.lastUpdated = Date()
+        libraryIndex = index
+        markLibraryIndexDirty()
+    }
+
+    private func updateLibraryIndexAfterDeleteCollection(
+        collectionID: String
+    ) {
+        guard var index = libraryIndex else { return }
+
+        let noteIDs = index.collections[collectionID]?.noteIDs
+            ?? index.notes.keys.filter { $0.hasPrefix("\(collectionID)/") }
+
+        index.collections.removeValue(forKey: collectionID)
+
+        for noteID in noteIDs {
+            index.notes.removeValue(forKey: noteID)
+        }
+
+        index.lastUpdated = Date()
+        libraryIndex = index
+        markLibraryIndexDirty()
     }
     
     private func updateLibraryIndexAfterCreateNote(
