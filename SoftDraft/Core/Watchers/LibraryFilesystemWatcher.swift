@@ -15,6 +15,7 @@ enum LibraryFilesystemEvent: Equatable {
     case deleted(noteID: String)
     case collectionRenamed(from: String, to: String)
     case collectionDeleted(collectionID: String)
+    case collectionAdded(collectionID: String)
 }
 
 final class LibraryFilesystemWatcher {
@@ -274,15 +275,22 @@ final class LibraryFilesystemWatcher {
 
         var events: [LibraryFilesystemEvent] = []
         var consumedNewIDs = Set<String>()
+        var renamedCollectionNames = Set<String>()
 
         // Handle collection renames/deletions first so selection updates precede note events
         for (name, oldCollection) in old.collectionEntries where new.collectionEntries[name] == nil {
             if let identifier = oldCollection.fileIdentifier,
                let renamed = new.collectionIdentifiers[identifier] {
                 events.append(.collectionRenamed(from: name, to: renamed.name))
+                renamedCollectionNames.insert(renamed.name)
             } else {
                 events.append(.collectionDeleted(collectionID: name))
             }
+        }
+        
+        for (name, _) in new.collectionEntries
+        where old.collectionEntries[name] == nil && !renamedCollectionNames.contains(name) {
+            events.append(.collectionAdded(collectionID: name))
         }
 
         for (noteID, newEntry) in new.noteEntries {

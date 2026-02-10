@@ -43,6 +43,7 @@ final class LibraryManager: ObservableObject {
     private var needsInitialCollectionSelection = false
     private var boundSearchIndex: SearchIndex?
     private var isLibraryIndexDirty = false
+    private var hasRunCatchUpReconciliation = false
 
     // MARK: - Startup
 
@@ -210,7 +211,7 @@ final class LibraryManager: ObservableObject {
 
     // MARK: - Filesystem reconciliation
 
-    func reconcile(_ event: LibraryFilesystemEvent) {
+    func reconcile(_ events: [LibraryFilesystemEvent]) async {
         guard
             let libraryURL = activeLibraryURL,
             !isPerformingInternalWrite
@@ -218,39 +219,69 @@ final class LibraryManager: ObservableObject {
 
         cleanupInternalWrites()
 
-        switch event {
-        case .added(let noteID):
-            guard !shouldIgnore(noteID: noteID) else { return }
-            handleAddition(
-                noteID: noteID,
-                libraryURL: libraryURL
-            )
+        var reconciliationEvents: [LibraryFilesystemEvent] = []
+        reconciliationEvents.reserveCapacity(events.count)
 
-        case .modified(let noteID):
-            guard !shouldIgnore(noteID: noteID) else { return }
-            handleModification(
-                noteID: noteID,
-                libraryURL: libraryURL
-            )
+        for event in events {
+            switch event {
+            case .added(let noteID):
+                guard !shouldIgnore(noteID: noteID) else { continue }
+                reconciliationEvents.append(event)
+                handleAddition(
+                    noteID: noteID,
+                    libraryURL: libraryURL
+                )
 
-        case let .renamed(from, to):
-            guard !shouldIgnore(noteID: from), !shouldIgnore(noteID: to) else { return }
-            handleRename(
-                from: from,
-                to: to,
-                libraryURL: libraryURL
-            )
+            case .modified(let noteID):
+                guard !shouldIgnore(noteID: noteID) else { continue }
+                reconciliationEvents.append(event)
+                handleModification(
+                    noteID: noteID,
+                    libraryURL: libraryURL
+                )
 
-        case .deleted(let noteID):
-            guard !shouldIgnore(noteID: noteID) else { return }
-            handleDeletion(noteID: noteID)
+            case let .renamed(from, to):
+                guard !shouldIgnore(noteID: from), !shouldIgnore(noteID: to) else { continue }
+                reconciliationEvents.append(event)
+                handleRename(
+                    from: from,
+                    to: to,
+                    libraryURL: libraryURL
+                )
 
-        case let .collectionRenamed(from, to):
-            handleCollectionRename(from: from, to: to, libraryURL: libraryURL)
+            case .deleted(let noteID):
+                guard !shouldIgnore(noteID: noteID) else { continue }
+                reconciliationEvents.append(event)
+                handleDeletion(noteID: noteID)
 
-        case let .collectionDeleted(collectionID):
-            handleCollectionDeletion(collectionID, libraryURL: libraryURL)
+            case let .collectionRenamed(from, to):
+                reconciliationEvents.append(event)
+                handleCollectionRename(from: from, to: to, libraryURL: libraryURL)
+
+            case let .collectionDeleted(collectionID):
+                reconciliationEvents.append(event)
+                handleCollectionDeletion(collectionID, libraryURL: libraryURL)
+
+            case let .collectionAdded(collectionID):
+                reconciliationEvents.append(event)
+                handleCollectionAddition(collectionID, libraryURL: libraryURL)
+            }
         }
+
+        guard
+            !reconciliationEvents.isEmpty,
+            let index = libraryIndex
+        else { return }
+
+        let result = await LibraryIndexReconciler.applyEvents(
+            reconciliationEvents,
+            to: index,
+            libraryURL: libraryURL
+        )
+
+        guard result.changed else { return }
+        libraryIndex = result.index
+        persistLibraryIndex(libraryURL: libraryURL)
     }
     
     @MainActor
@@ -553,6 +584,7 @@ final class LibraryManager: ObservableObject {
         activeLibraryURL = url
         startupState = .loaded(url)
         resetVisibleState()
+        hasRunCatchUpReconciliation = false
 
         // ✅ NEW: load or create library index
         loadOrCreateLibraryIndex(libraryURL: url)
@@ -563,6 +595,7 @@ final class LibraryManager: ObservableObject {
         }
 
         startWatcher(for: url)
+        scheduleCatchUpReconciliation(libraryURL: url)
     }
 
     private func transitionToNoLibrary() {
@@ -586,9 +619,7 @@ final class LibraryManager: ObservableObject {
             guard let self else { return }
             Task { @MainActor in
                 guard !self.isPerformingInternalWrite else { return }
-                for event in events {
-                    self.reconcile(event)
-                }
+                await self.reconcile(events)
             }
         }
         watcher.start()
@@ -768,6 +799,17 @@ final class LibraryManager: ObservableObject {
             } else {
                 selection?.selectCollection(nil)
             }
+        }
+    }
+
+    private func handleCollectionAddition(
+        _ collectionID: String,
+        libraryURL: URL
+    ) {
+        guard !visibleCollections.contains(collectionID) else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            await self.reloadCollections(libraryURL: libraryURL)
         }
     }
 
@@ -969,6 +1011,27 @@ final class LibraryManager: ObservableObject {
                 libraryURL: libraryURL,
                 existingLibraryID: existingLibraryID
             )
+        }
+    }
+
+    private func scheduleCatchUpReconciliation(libraryURL: URL) {
+        guard !hasRunCatchUpReconciliation else { return }
+        hasRunCatchUpReconciliation = true
+
+        Task { [weak self] in
+            guard let self else { return }
+            await Task.yield()
+
+            guard let index = self.libraryIndex else { return }
+
+            let result = await LibraryIndexReconciler.reconcileAgainstFilesystem(
+                libraryURL: libraryURL,
+                index: index
+            )
+
+            guard result.changed else { return }
+            self.libraryIndex = result.index
+            self.persistLibraryIndex(libraryURL: libraryURL)
         }
     }
 
