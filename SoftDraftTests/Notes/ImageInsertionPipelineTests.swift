@@ -3,6 +3,7 @@ import AppKit
 import UniformTypeIdentifiers
 @testable import SoftDraft
 
+@MainActor
 final class ImageInsertionPipelineTests: XCTestCase {
 
     func testFileIngestionPersistsAndInsertsMarkdown() async throws {
@@ -43,17 +44,15 @@ final class ImageInsertionPipelineTests: XCTestCase {
         let imageData = try makeImageData(width: 12, height: 12)
 
         let pasteboardName = NSPasteboard.Name("test-pipeline-\(UUID().uuidString)")
-        let pasteboard = await MainActor.run { NSPasteboard(name: pasteboardName) }
-        await MainActor.run {
-            pasteboard.clearContents()
-            pasteboard.setData(imageData, forType: .png)
-        }
+        let pasteboard = NSPasteboard(name: pasteboardName)
+        pasteboard.clearContents()
+        pasteboard.setData(imageData, forType: .png)
 
         let pipeline = ImageInsertionPipeline(dateProvider: { Date(timeIntervalSince1970: 2_000) })
         var insertedMarkdown: String?
 
         let outcome = await pipeline.run(
-            source: .clipboard(pasteboard),
+            source: .clipboard({ @MainActor in NSPasteboard(name: pasteboardName) }),
             libraryURL: libraryURL
         ) { markdown in
             insertedMarkdown = markdown

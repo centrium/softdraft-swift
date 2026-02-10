@@ -36,7 +36,7 @@ let confirmMoveNoteCommand = AppCommand(
 
         let selectionPlan: (preferredNextID: String?, affectedVisibleList: Bool)
         if currentCollection != destination {
-            selectionPlan = await ctx.libraryManager.prepareSelectionForRemoval(of: pending.noteID)
+            selectionPlan = ctx.libraryManager.prepareSelectionForRemoval(of: pending.noteID)
         } else {
             selectionPlan = (nil, false)
         }
@@ -46,7 +46,7 @@ let confirmMoveNoteCommand = AppCommand(
 
         print("➡️ Moving \(pending.noteID) to \(destination)")
 
-        await ctx.libraryManager.beginInternalWrite(noteID: pending.noteID)
+        ctx.libraryManager.beginInternalWrite(noteID: pending.noteID)
         do {
             let result = try NoteStore.move(
                 libraryURL: libraryURL,
@@ -61,11 +61,11 @@ let confirmMoveNoteCommand = AppCommand(
             ctx.libraryManager.suppressEvents(for: result)
         } catch {
             print("❌ Failed to move note:", error)
-            await ctx.libraryManager.endInternalWrite(noteID: pending.noteID)
+            ctx.libraryManager.endInternalWrite(noteID: pending.noteID)
             return
         }
 
-        await ctx.libraryManager.endInternalWrite(noteID: pending.noteID)
+        ctx.libraryManager.endInternalWrite(noteID: pending.noteID)
 
         ctx.libraryManager.reloadCurrentCollection(
             preferredSelection: selectionPlan.preferredNextID,

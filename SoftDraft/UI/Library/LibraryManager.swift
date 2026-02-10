@@ -433,8 +433,7 @@ final class LibraryManager: ObservableObject {
         updateLibraryIndexAfterCreateNote(
             noteID: result.summary.id,
             title: result.summary.title,
-            collectionID: collectionID,
-            libraryURL: libraryURL
+            collectionID: collectionID
         )
         persistLibraryIndex(libraryURL: libraryURL)
 
@@ -1073,17 +1072,11 @@ final class LibraryManager: ObservableObject {
     private func updateLibraryIndexAfterCreateCollection(
         collectionID: String
     ) {
-        guard var index = libraryIndex else { return }
-
-        if index.collections[collectionID] == nil {
-            index.collections[collectionID] = CollectionIndex(
-                id: collectionID,
-                noteIDs: []
-            )
-        }
-
-        index.lastUpdated = Date()
-        libraryIndex = index
+        guard let index = libraryIndex else { return }
+        libraryIndex = LibraryIndexMutator.createCollection(
+            index: index,
+            collectionID: collectionID
+        )
         markLibraryIndexDirty()
     }
 
@@ -1091,96 +1084,38 @@ final class LibraryManager: ObservableObject {
         from oldID: String,
         to newID: String
     ) {
-        guard var index = libraryIndex else { return }
-        guard oldID != newID else { return }
-
-        let oldCollection = index.collections.removeValue(forKey: oldID)
-        let oldNoteIDs = oldCollection?.noteIDs ?? []
-
-        var updatedNoteIDs: [String] = []
-        updatedNoteIDs.reserveCapacity(oldNoteIDs.count)
-
-        for noteID in oldNoteIDs {
-            let newNoteID: String
-            if noteID.hasPrefix("\(oldID)/") {
-                let rest = noteID.dropFirst(oldID.count + 1)
-                newNoteID = "\(newID)/\(rest)"
-            } else {
-                newNoteID = noteID
-            }
-
-            if let oldNote = index.notes.removeValue(forKey: noteID) {
-                let updatedNote = NoteIndex(
-                    id: newNoteID,
-                    path: newNoteID,
-                    title: oldNote.title,
-                    modified: Date()
-                )
-                index.notes[newNoteID] = updatedNote
-            }
-
-            updatedNoteIDs.append(newNoteID)
-        }
-
-        index.collections[newID] = CollectionIndex(
-            id: newID,
-            noteIDs: updatedNoteIDs
+        guard let index = libraryIndex else { return }
+        libraryIndex = LibraryIndexMutator.renameCollection(
+            index: index,
+            oldID: oldID,
+            newID: newID
         )
-
-        index.lastUpdated = Date()
-        libraryIndex = index
         markLibraryIndexDirty()
     }
 
     private func updateLibraryIndexAfterDeleteCollection(
         collectionID: String
     ) {
-        guard var index = libraryIndex else { return }
-
-        let noteIDs = index.collections[collectionID]?.noteIDs
-            ?? index.notes.keys.filter { $0.hasPrefix("\(collectionID)/") }
-
-        index.collections.removeValue(forKey: collectionID)
-
-        for noteID in noteIDs {
-            index.notes.removeValue(forKey: noteID)
-        }
-
-        index.lastUpdated = Date()
-        libraryIndex = index
+        guard let index = libraryIndex else { return }
+        libraryIndex = LibraryIndexMutator.deleteCollection(
+            index: index,
+            collectionID: collectionID
+        )
         markLibraryIndexDirty()
     }
     
     private func updateLibraryIndexAfterCreateNote(
         noteID: String,
         title: String,
-        collectionID: String,
-        libraryURL: URL
+        collectionID: String
     ) {
-        guard var index = libraryIndex else { return }
-
-        // Ensure collection exists in index
-        if index.collections[collectionID] == nil {
-            index.collections[collectionID] = CollectionIndex(id: collectionID, noteIDs: [])
-        }
-
-        // Relative path: match your noteID convention (collection/note.md etc)
-        // If your noteID is already "Collection/Filename.md", use it directly as path.
-        let relativePath = noteID
-
-        index.notes[noteID] = NoteIndex(
-            id: noteID,
-            path: relativePath,
+        guard let index = libraryIndex else { return }
+        libraryIndex = LibraryIndexMutator.createNote(
+            index: index,
+            noteID: noteID,
             title: title,
-            modified: Date()
+            collectionID: collectionID
         )
-
-        if !(index.collections[collectionID]?.noteIDs.contains(noteID) ?? false) {
-            index.collections[collectionID]?.noteIDs.append(noteID)
-        }
-
-        index.lastUpdated = Date()
-        libraryIndex = index
         markLibraryIndexDirty()
     }
     
@@ -1188,13 +1123,12 @@ final class LibraryManager: ObservableObject {
         noteID: String,
         collectionID: String
     ) {
-        guard var index = libraryIndex else { return }
-
-        index.notes.removeValue(forKey: noteID)
-        index.collections[collectionID]?.noteIDs.removeAll { $0 == noteID }
-
-        index.lastUpdated = Date()
-        libraryIndex = index
+        guard let index = libraryIndex else { return }
+        libraryIndex = LibraryIndexMutator.deleteNote(
+            index: index,
+            noteID: noteID,
+            collectionID: collectionID
+        )
         markLibraryIndexDirty()
     }
     
@@ -1202,40 +1136,12 @@ final class LibraryManager: ObservableObject {
         oldID: String,
         newID: String
     ) {
-        guard var index = libraryIndex else { return }
-
-        // Find existing note
-        guard let oldNote = index.notes[oldID] else { return }
-
-        // Determine collections
-        let oldCollection = collectionID(for: oldID)
-        let newCollection = collectionID(for: newID)
-
-        // Remove old entry
-        index.notes.removeValue(forKey: oldID)
-        index.collections[oldCollection]?.noteIDs.removeAll { $0 == oldID }
-
-        // Insert new entry
-        let newNote = NoteIndex(
-            id: newID,
-            path: newID,          // matches your ID-as-path convention
-            title: oldNote.title, // title already updated elsewhere
-            modified: Date()
+        guard let index = libraryIndex else { return }
+        libraryIndex = LibraryIndexMutator.renameNote(
+            index: index,
+            oldID: oldID,
+            newID: newID
         )
-
-        index.notes[newID] = newNote
-
-        if index.collections[newCollection] == nil {
-            index.collections[newCollection] = CollectionIndex(
-                id: newCollection,
-                noteIDs: []
-            )
-        }
-
-        index.collections[newCollection]?.noteIDs.append(newID)
-
-        index.lastUpdated = Date()
-        libraryIndex = index
         markLibraryIndexDirty()
     }
 

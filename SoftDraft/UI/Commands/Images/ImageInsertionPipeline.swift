@@ -26,7 +26,7 @@ struct ImageInsertionPipeline {
     }
 
     enum Source {
-        case clipboard(NSPasteboard)
+        case clipboard(@MainActor () -> NSPasteboard)
         case file(URL)
     }
 
@@ -99,9 +99,9 @@ struct ImageInsertionPipeline {
         switch source {
         case .file(let url):
             return loadFileRepresentation(url)
-        case .clipboard(let pasteboard):
+        case .clipboard(let provider):
             return await MainActor.run {
-                loadClipboardRepresentation(pasteboard)
+                loadClipboardRepresentation(provider())
             }
         }
     }

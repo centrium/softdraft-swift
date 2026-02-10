@@ -17,7 +17,9 @@ let insertImageFromFileCommand = AppCommand(
     perform: { ctx in
         guard let libraryURL = ctx.libraryURL else { return }
 
-        guard let url = await chooseImageURL() else { return }
+        guard let url = await MainActor.run(body: {
+            chooseImageURL()
+        }) else { return }
 
         _ = await runImagePipeline(
             context: ctx,
@@ -43,11 +45,9 @@ let handlePasteCommand = AppCommand(
             return
         }
 
-        let pasteboard = await MainActor.run { NSPasteboard.general }
-
         let outcome = await runImagePipeline(
             context: ctx,
-            source: .clipboard(pasteboard),
+            source: .clipboard({ @MainActor in NSPasteboard.general }),
             libraryURL: libraryURL
         )
 
@@ -61,7 +61,6 @@ let handlePasteCommand = AppCommand(
 
 // MARK: - Helpers
 
-@MainActor
 private func chooseImageURL() -> URL? {
     let panel = NSOpenPanel()
     panel.canChooseDirectories = false
