@@ -27,6 +27,7 @@ final class LibraryManager: ObservableObject {
     @Published private(set) var visibleCollectionID: String?
     @Published private(set) var externalChangeTokens: [String: UUID] = [:]
     @Published private(set) var visibleCollections: [String] = []
+    @Published private(set) var libraryIndex: LibraryIndex?
     
     @Published var currentNoteText: String = ""
     
@@ -41,6 +42,7 @@ final class LibraryManager: ObservableObject {
     // Tracks whether we still need to restore the persisted selection for this library.
     private var needsInitialCollectionSelection = false
     private var boundSearchIndex: SearchIndex?
+    private var isLibraryIndexDirty = false
 
     // MARK: - Startup
 
@@ -253,6 +255,16 @@ final class LibraryManager: ObservableObject {
     
     @MainActor
     func replaceNoteID(oldID: String, newID: String) {
+        
+        updateLibraryIndexAfterRenameNote(
+            oldID: oldID,
+            newID: newID
+        )
+        
+        if let libraryURL = activeLibraryURL {
+            persistLibraryIndex(libraryURL: libraryURL)
+        }
+        
         // 1️⃣ Update selection immediately
         if selection?.selectedNoteID == oldID {
             selection?.selectedNoteID = newID
@@ -386,6 +398,14 @@ final class LibraryManager: ObservableObject {
             libraryURL: libraryURL,
             collection: collectionID
         )
+        
+        updateLibraryIndexAfterCreateNote(
+            noteID: result.summary.id,
+            title: result.summary.title,
+            collectionID: collectionID,
+            libraryURL: libraryURL
+        )
+        persistLibraryIndex(libraryURL: libraryURL)
 
         return result.summary.id
     }
@@ -416,6 +436,9 @@ final class LibraryManager: ObservableObject {
         )
 
         guard visibleCollectionID == collectionID else { return }
+        
+        updateLibraryIndexAfterDeleteNote(noteID: noteID, collectionID: collectionID)
+        persistLibraryIndex(libraryURL: libraryURL)
 
         if selectionPlan.affectedVisibleList {
             finalizeSelectionAfterRemoval(preferred: selectionPlan.preferredNextID)
@@ -519,6 +542,9 @@ final class LibraryManager: ObservableObject {
         activeLibraryURL = url
         startupState = .loaded(url)
         resetVisibleState()
+
+        // ✅ NEW: load or create library index
+        loadOrCreateLibraryIndex(libraryURL: url)
 
         Task {
             await ensureMandatoryCollectionsExist(libraryURL: url)
@@ -897,6 +923,144 @@ final class LibraryManager: ObservableObject {
         
         print("🔍 SEARCH INDEXED:", entries.count, "notes")
         searchIndex.replaceAll(entries)
+    }
+    
+    private func loadOrCreateLibraryIndex(libraryURL: URL) {
+        let dir = libraryURL
+            .appendingPathComponent(".softdraft", isDirectory: true)
+
+        let url = dir.appendingPathComponent("library.json")
+
+        try? FileManager.default.createDirectory(
+            at: dir,
+            withIntermediateDirectories: true
+        )
+
+        if
+            let data = try? Data(contentsOf: url),
+            let index = try? JSONDecoder().decode(LibraryIndex.self, from: data)
+        {
+            libraryIndex = index
+        } else {
+            libraryIndex = LibraryIndex(
+                version: 1,
+                libraryID: UUID().uuidString,
+                lastUpdated: Date(),
+                collections: [:],
+                notes: [:]
+            )
+            persistLibraryIndex(libraryURL: libraryURL)
+        }
+    }
+    
+    private func persistLibraryIndex(libraryURL: URL) {
+        guard let libraryIndex else { return }
+
+        let dir = libraryURL
+            .appendingPathComponent(".softdraft", isDirectory: true)
+        let url = dir.appendingPathComponent("library.json")
+        let tmp = url.appendingPathExtension("tmp")
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+
+        guard let data = try? encoder.encode(libraryIndex) else { return }
+
+        try? data.write(to: tmp, options: .atomic)
+        _ = try? FileManager.default.replaceItemAt(url, withItemAt: tmp)
+        isLibraryIndexDirty = false
+    }
+    
+    private func markLibraryIndexDirty() {
+        isLibraryIndexDirty = true
+    }
+    
+    private func updateLibraryIndexAfterCreateNote(
+        noteID: String,
+        title: String,
+        collectionID: String,
+        libraryURL: URL
+    ) {
+        guard var index = libraryIndex else { return }
+
+        // Ensure collection exists in index
+        if index.collections[collectionID] == nil {
+            index.collections[collectionID] = CollectionIndex(id: collectionID, noteIDs: [])
+        }
+
+        // Relative path: match your noteID convention (collection/note.md etc)
+        // If your noteID is already "Collection/Filename.md", use it directly as path.
+        let relativePath = noteID
+
+        index.notes[noteID] = NoteIndex(
+            id: noteID,
+            path: relativePath,
+            title: title,
+            modified: Date()
+        )
+
+        if !(index.collections[collectionID]?.noteIDs.contains(noteID) ?? false) {
+            index.collections[collectionID]?.noteIDs.append(noteID)
+        }
+
+        index.lastUpdated = Date()
+        libraryIndex = index
+        markLibraryIndexDirty()
+    }
+    
+    private func updateLibraryIndexAfterDeleteNote(
+        noteID: String,
+        collectionID: String
+    ) {
+        guard var index = libraryIndex else { return }
+
+        index.notes.removeValue(forKey: noteID)
+        index.collections[collectionID]?.noteIDs.removeAll { $0 == noteID }
+
+        index.lastUpdated = Date()
+        libraryIndex = index
+        markLibraryIndexDirty()
+    }
+    
+    private func updateLibraryIndexAfterRenameNote(
+        oldID: String,
+        newID: String
+    ) {
+        guard var index = libraryIndex else { return }
+
+        // Find existing note
+        guard let oldNote = index.notes[oldID] else { return }
+
+        // Determine collections
+        let oldCollection = collectionID(for: oldID)
+        let newCollection = collectionID(for: newID)
+
+        // Remove old entry
+        index.notes.removeValue(forKey: oldID)
+        index.collections[oldCollection]?.noteIDs.removeAll { $0 == oldID }
+
+        // Insert new entry
+        let newNote = NoteIndex(
+            id: newID,
+            path: newID,          // matches your ID-as-path convention
+            title: oldNote.title, // title already updated elsewhere
+            modified: Date()
+        )
+
+        index.notes[newID] = newNote
+
+        if index.collections[newCollection] == nil {
+            index.collections[newCollection] = CollectionIndex(
+                id: newCollection,
+                noteIDs: []
+            )
+        }
+
+        index.collections[newCollection]?.noteIDs.append(newID)
+
+        index.lastUpdated = Date()
+        libraryIndex = index
+        markLibraryIndexDirty()
     }
 
 }

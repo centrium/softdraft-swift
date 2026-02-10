@@ -119,13 +119,19 @@ struct NotesListView: View {
                             .transition(.opacity)
                         } else {
                             ForEach(displayedSearchResults) { result in
-                                SearchResultRow(
-                                    note: result.note,
-                                    hint: result.hint,
-                                    isSelected: searchSelection == result.id
-                                )
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .frame(minHeight: 48)
+                                Button {
+                                    openSearchResult(result.id)
+                                } label: {
+                                    SearchResultRow(
+                                        note: result.note,
+                                        hint: result.hint,
+                                        isSelected: searchSelection == result.id
+                                    )
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .frame(minHeight: 48)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
                                 .listRowBackground(
                                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                                         .fill(
@@ -143,9 +149,6 @@ struct NotesListView: View {
                                 .tag(result.id)
                                 .onHover { hovering in
                                     updateHoverState(for: result.id, hovering: hovering)
-                                }
-                                .onTapGesture {
-                                    openSearchResult(result.id)
                                 }
                             }
                         }

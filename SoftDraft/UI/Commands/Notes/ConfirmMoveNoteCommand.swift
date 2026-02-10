@@ -54,6 +54,10 @@ let confirmMoveNoteCommand = AppCommand(
                 destCollection: destination
             )
             print("✅ Move result:", result)
+            ctx.libraryManager.replaceNoteID(
+                oldID: pending.noteID,
+                newID: result
+            )
             ctx.libraryManager.suppressEvents(for: result)
         } catch {
             print("❌ Failed to move note:", error)
