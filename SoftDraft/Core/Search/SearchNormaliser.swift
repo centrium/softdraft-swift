@@ -10,7 +10,7 @@ import Foundation
 
 enum SearchNormaliser {
 
-    static func normalise(_ input: String) -> String {
+    nonisolated static func normalise(_ input: String) -> String {
         // Cheap normalisation: lowercase + collapse whitespace
         let lower = input.lowercased()
         return lower.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)

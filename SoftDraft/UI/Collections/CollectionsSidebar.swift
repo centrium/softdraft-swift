@@ -35,6 +35,37 @@ struct CollectionsSidebar: View {
         }
     }
 
+    private func scrollToSelection(
+        using proxy: ScrollViewProxy,
+        animated: Bool
+    ) {
+        guard let selected = selection.selectedCollectionID else { return }
+        guard selected == "Inbox" || visibleCollections.contains(selected) else {
+            return
+        }
+
+        let action = {
+            proxy.scrollTo(selected, anchor: .center)
+        }
+
+        if animated {
+            withAnimation(.easeOut(duration: 0.2)) {
+                action()
+            }
+        } else {
+            action()
+        }
+    }
+
+    private func scheduleScrollToSelection(
+        using proxy: ScrollViewProxy,
+        animated: Bool
+    ) {
+        DispatchQueue.main.async {
+            scrollToSelection(using: proxy, animated: animated)
+        }
+    }
+
     // MARK: - Ordering
 
     private var orderedCollections: [String] {
@@ -66,50 +97,58 @@ struct CollectionsSidebar: View {
     // MARK: - View
 
     var body: some View {
-        Group {
-            if isRenaming {
-                List {
-                    rows(selectionEnabled: false)
-                }
-            } else {
-                List(selection: $listSelection) {
-                    rows(selectionEnabled: true)
+        ScrollViewReader { proxy in
+            Group {
+                if isRenaming {
+                    List {
+                        rows(selectionEnabled: false)
+                    }
+                } else {
+                    List(selection: $listSelection) {
+                        rows(selectionEnabled: true)
+                    }
                 }
             }
-        }
-        .listStyle(.sidebar)
-        .navigationTitle("Collections")
-        .focused($sidebarFocused)
-        .onChange(of: selection.selectedCollectionID) { _, newValue in
-            guard listSelection != newValue else { return }
-            listSelection = newValue
-        }
-        .onChange(of: listSelection) { _, newValue in
-            guard selection.selectedCollectionID != newValue else { return }
-            DispatchQueue.main.async {
-                selection.selectCollection(newValue)
+            .listStyle(.sidebar)
+            .navigationTitle("Collections")
+            .focused($sidebarFocused)
+            .onChange(of: selection.selectedCollectionID) { _, newValue in
+                guard listSelection != newValue else { return }
+                listSelection = newValue
+                scheduleScrollToSelection(using: proxy, animated: true)
             }
-        }
-        .onChange(of: libraryManager.visibleCollections) { _, _ in
-            // Re-apply selection once collections are available
-            DispatchQueue.main.async {
+            .onChange(of: listSelection) { _, newValue in
+                guard selection.selectedCollectionID != newValue else { return }
+                DispatchQueue.main.async {
+                    selection.selectCollection(newValue)
+                }
+            }
+            .onChange(of: libraryManager.visibleCollections) { _, _ in
+                // Re-apply selection once collections are available.
+                DispatchQueue.main.async {
+                    syncSelectionFromModel()
+                    scheduleScrollToSelection(using: proxy, animated: false)
+                }
+            }
+            .onChange(of: showAllCollections) { _, _ in
+                scheduleScrollToSelection(using: proxy, animated: true)
+            }
+            .onAppear {
                 syncSelectionFromModel()
+                scheduleScrollToSelection(using: proxy, animated: false)
             }
-        }
-        .onAppear {
-            syncSelectionFromModel()
-        }
-        .onKeyPress(.return) {
-            guard
-                sidebarFocused,
-                selection.selectedCollectionID != nil,
-                selection.pendingCollectionRename == nil
-            else {
-                return .ignored
-            }
+            .onKeyPress(.return) {
+                guard
+                    sidebarFocused,
+                    selection.selectedCollectionID != nil,
+                    selection.pendingCollectionRename == nil
+                else {
+                    return .ignored
+                }
 
-            commandRegistry.run("collection.rename.begin")
-            return .handled
+                commandRegistry.run("collection.rename.begin")
+                return .handled
+            }
         }
     }
 
@@ -132,6 +171,7 @@ struct CollectionsSidebar: View {
                         .help("Inbox is a built-in collection and can’t be renamed or deleted.")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .id("Inbox")
                 .listRowBackground(selectionBackground(for: "Inbox"))
                 .listRowInsets(
                     EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
@@ -147,6 +187,7 @@ struct CollectionsSidebar: View {
             ForEach(visibleCollections, id: \.self) { name in
                 collectionRow(for: name)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .id(name)
                     .listRowBackground(selectionBackground(for: name))
                     .listRowInsets(
                         EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)

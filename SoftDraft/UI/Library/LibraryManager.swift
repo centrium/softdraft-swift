@@ -45,10 +45,30 @@ final class LibraryManager: ObservableObject {
     private var isLibraryIndexDirty = false
     private var hasRunCatchUpReconciliation = false
     private var hasRunPinnedMigration = false
+    private var deferSearchIndexRebuild = false
+    private var hasPendingSearchIndexRebuild = false
+    private var searchIndexRebuildTask: Task<Void, Never>?
 
     // MARK: - Startup
 
-    func bind(selection: SelectionModel) {boundSearchIndex.map { rebuildSearchIndex($0) }
+    func resolveInitialLibrarySync() {
+        let config = AppConfigStore.loadSync()
+
+        guard let url = config.lastLibraryURL else {
+            transitionToNoLibrary()
+            return
+        }
+
+        guard LibraryValidator.isLibraryRoot(url) else {
+            transitionToNoLibrary()
+            return
+        }
+
+        transitionToLoadedLibrary(url)
+    }
+
+    func bind(selection: SelectionModel) {
+        boundSearchIndex.map { scheduleSearchIndexRebuild($0) }
         self.selection = selection
 
         // Persist last active collection when selection changes
@@ -77,17 +97,18 @@ final class LibraryManager: ObservableObject {
         self.boundSearchIndex = searchIndex
 
         // 🔑 CRITICAL: rebuild immediately with current state
-        rebuildSearchIndex(searchIndex)
+        scheduleSearchIndexRebuild(searchIndex)
 
         $visibleNotes
             .sink { [weak self] _ in
                 guard let self, let index = self.boundSearchIndex else { return }
-                self.rebuildSearchIndex(index)
+                self.scheduleSearchIndexRebuild(index)
             }
             .store(in: &cancellables)
     }
     
     func resolveInitialLibrary() async {
+        guard case .resolving = startupState else { return }
         let config = await AppConfigStore.load()
 
         guard let url = config.lastLibraryURL else {
@@ -186,11 +207,35 @@ final class LibraryManager: ObservableObject {
                 return summaryWithPinned(summary, pinned: pinned)
             }
             visibleNotes = sortNotes(enriched)
-            boundSearchIndex.map { rebuildSearchIndex($0) }
+            boundSearchIndex.map { scheduleSearchIndexRebuild($0) }
         } catch {
             guard visibleCollectionID == collection else { return }
             visibleNotes = []
         }
+    }
+
+    func loadNotesFromIndex(
+        collection: String
+    ) {
+        visibleCollectionID = collection
+
+        guard let index = libraryIndex else {
+            visibleNotes = []
+            return
+        }
+
+        let noteIDs = index.collections[collection]?.noteIDs ?? []
+        let summaries = noteIDs.compactMap { noteID -> NoteSummary? in
+            guard let note = index.notes[noteID] else { return nil }
+            return summaryFromIndex(
+                noteID: noteID,
+                note: note,
+                fallbackCollection: collection
+            )
+        }
+
+        visibleNotes = sortNotes(summaries)
+        boundSearchIndex.map { scheduleSearchIndexRebuild($0) }
     }
 
     func reloadCurrentCollection(
@@ -608,7 +653,10 @@ final class LibraryManager: ObservableObject {
     private func transitionToLoadedLibrary(_ url: URL) {
         stopWatcher()
         activeLibraryURL = url
-        startupState = .loaded(url)
+        deferSearchIndexRebuild = true
+        hasPendingSearchIndexRebuild = false
+        searchIndexRebuildTask?.cancel()
+        searchIndexRebuildTask = nil
         resetVisibleState()
         hasRunCatchUpReconciliation = false
         hasRunPinnedMigration = false
@@ -616,13 +664,11 @@ final class LibraryManager: ObservableObject {
         // ✅ NEW: load or create library index
         loadOrCreateLibraryIndex(libraryURL: url)
 
-        Task {
-            await ensureMandatoryCollectionsExist(libraryURL: url)
-            await reloadCollections(libraryURL: url)
-        }
+        applyIndexSnapshot(libraryURL: url)
 
-        startWatcher(for: url)
-        scheduleCatchUpReconciliation(libraryURL: url)
+        startupState = .loaded(url)
+
+        startPostLaunchTasks(for: url)
     }
 
     private func transitionToNoLibrary() {
@@ -631,6 +677,10 @@ final class LibraryManager: ObservableObject {
         startupState = .noLibrary
         resetVisibleState()
         selection?.selectedNoteID = nil
+        deferSearchIndexRebuild = false
+        hasPendingSearchIndexRebuild = false
+        searchIndexRebuildTask?.cancel()
+        searchIndexRebuildTask = nil
     }
 
     private func resetVisibleState() {
@@ -639,6 +689,101 @@ final class LibraryManager: ObservableObject {
         currentNoteText = ""
         needsInitialCollectionSelection = true
         selection?.selectCollection(nil)
+    }
+
+    private func applyIndexSnapshot(libraryURL: URL) {
+        guard let index = libraryIndex else {
+            visibleCollections = []
+            visibleCollectionID = nil
+            visibleNotes = []
+            return
+        }
+
+        visibleCollections = index.collections.keys.sorted()
+        restoreInitialCollectionSelection(
+            libraryURL: libraryURL,
+            available: visibleCollections
+        )
+
+        if let selected = selection?.selectedCollectionID {
+            loadNotesFromIndex(collection: selected)
+        } else {
+            visibleCollectionID = nil
+            visibleNotes = []
+        }
+    }
+
+    private func restoreInitialCollectionSelection(
+        libraryURL: URL,
+        available: [String]
+    ) {
+        guard let selection else { return }
+
+        if let current = selection.selectedCollectionID,
+           available.contains(current) {
+            needsInitialCollectionSelection = false
+            return
+        }
+
+        guard !available.isEmpty else {
+            needsInitialCollectionSelection = false
+            selection.selectCollection(nil)
+            return
+        }
+
+        if let meta = try? LibraryMetaStore.load(libraryURL),
+           let preferred = meta.lastActiveCollectionId,
+           available.contains(preferred) {
+            needsInitialCollectionSelection = false
+            selection.selectCollection(preferred)
+            return
+        }
+
+        needsInitialCollectionSelection = false
+
+        if let fallback = fallbackCollection(from: available) {
+            selection.selectCollection(fallback)
+        } else {
+            selection.selectCollection(nil)
+        }
+    }
+
+    private func refreshVisibleStateFromIndex(libraryURL: URL) {
+        guard let index = libraryIndex else { return }
+
+        visibleCollections = index.collections.keys.sorted()
+        ensureCollectionSelection(libraryURL: libraryURL)
+
+        if let selected = selection?.selectedCollectionID {
+            loadNotesFromIndex(collection: selected)
+        } else {
+            visibleCollectionID = nil
+            visibleNotes = []
+        }
+    }
+
+    private func startPostLaunchTasks(for url: URL) {
+        Task { [weak self] in
+            await Task.yield()
+            await self?.runPostLaunchTasks(for: url)
+        }
+    }
+
+    @MainActor
+    private func runPostLaunchTasks(for url: URL) async {
+        guard activeLibraryURL == url else { return }
+
+        startWatcher(for: url)
+        scheduleCatchUpReconciliation(libraryURL: url)
+
+        deferSearchIndexRebuild = false
+        if hasPendingSearchIndexRebuild,
+           let searchIndex = boundSearchIndex {
+            hasPendingSearchIndexRebuild = false
+            rebuildSearchIndex(searchIndex)
+        }
+
+        await ensureMandatoryCollectionsExist(libraryURL: url)
     }
 
     private func startWatcher(for url: URL) {
@@ -679,6 +824,31 @@ final class LibraryManager: ObservableObject {
             relativeDir: summary.relativeDir,
             modifiedAt: summary.modifiedAt,
             pinned: pinned
+        )
+    }
+
+    private func summaryFromIndex(
+        noteID: String,
+        note: NoteIndex,
+        fallbackCollection: String
+    ) -> NoteSummary {
+        let parts = noteID.split(separator: "/", maxSplits: 1)
+        let collectionID = parts.first.map(String.init) ?? fallbackCollection
+        let filename = parts.count > 1 ? String(parts[1]) : (noteID as NSString).lastPathComponent
+        let name = filename.replacingOccurrences(
+            of: ".md",
+            with: "",
+            options: .caseInsensitive
+        )
+        let title = note.title.isEmpty ? name : note.title
+
+        return NoteSummary(
+            id: note.id,
+            name: name,
+            title: title,
+            relativeDir: collectionID,
+            modifiedAt: note.modified,
+            pinned: note.pinned
         )
     }
 
@@ -1009,19 +1179,61 @@ final class LibraryManager: ObservableObject {
         noteID.split(separator: "/").first.map(String.init) ?? "Inbox"
     }
     
-    func rebuildSearchIndex(_ searchIndex: SearchIndex) {
-        let entries: [SearchIndexEntry] = visibleNotes.compactMap { note in
-            guard let markdown = markdownForNote(note) else { return nil }
-
-            return SearchExtractor.extract(
-                noteID: note.id,
-                title: note.title,
-                markdown: markdown
-            )
+    private func scheduleSearchIndexRebuild(
+        _ searchIndex: SearchIndex
+    ) {
+        guard !deferSearchIndexRebuild else {
+            hasPendingSearchIndexRebuild = true
+            return
         }
-        
-        print("🔍 SEARCH INDEXED:", entries.count, "notes")
-        searchIndex.replaceAll(entries)
+
+        rebuildSearchIndex(searchIndex)
+    }
+
+    func rebuildSearchIndex(_ searchIndex: SearchIndex) {
+        guard let libraryURL = activeLibraryURL else { return }
+
+        let notes = visibleNotes
+        let collectionsDir = collectionsDir
+
+        searchIndexRebuildTask?.cancel()
+        searchIndexRebuildTask = Task.detached(priority: .utility) {
+            var entries: [SearchIndexEntry] = []
+            entries.reserveCapacity(notes.count)
+
+            for note in notes {
+                guard !Task.isCancelled else { return }
+
+                let fileName = note.name.hasSuffix(".md")
+                    ? note.name
+                    : note.name + ".md"
+                let noteURL = libraryURL
+                    .appendingPathComponent(collectionsDir)
+                    .appendingPathComponent(note.relativeDir)
+                    .appendingPathComponent(fileName)
+
+                guard let markdown = try? String(contentsOf: noteURL, encoding: .utf8) else {
+                    continue
+                }
+
+                entries.append(
+                    SearchExtractor.extract(
+                    noteID: note.id,
+                    title: note.title,
+                    markdown: markdown
+                )
+                )
+            }
+
+            guard !Task.isCancelled else { return }
+            let builtEntries = entries
+
+            await MainActor.run {
+                guard !Task.isCancelled else { return }
+                print("🔍 SEARCH INDEXED:", builtEntries.count, "notes")
+                searchIndex.replaceAll(builtEntries)
+            }
+        }
     }
     
     private func loadOrCreateLibraryIndex(libraryURL: URL) {
@@ -1042,6 +1254,7 @@ final class LibraryManager: ObservableObject {
 
         if let index = decodedIndex,
            LibraryIndexBuilder.isSupportedVersion(index.version) {
+            print("🗂️ LibraryIndex loaded:", index.collections.count, "collections,", index.notes.count, "notes")
             libraryIndex = index
             schedulePinnedMigration(libraryURL: libraryURL)
             return
@@ -1050,15 +1263,25 @@ final class LibraryManager: ObservableObject {
         let existingLibraryID = decodedIndex?.libraryID
             ?? data.flatMap { LibraryIndexBuilder.extractLibraryID(from: $0) }
 
-        libraryIndex = nil
-
-        Task { [weak self] in
-            guard let self else { return }
-            await self.rebuildLibraryIndex(
-                libraryURL: libraryURL,
-                existingLibraryID: existingLibraryID
+        if data == nil {
+            print("🗂️ LibraryIndex missing; using empty index (filesystem reconcile pending)")
+        } else if let decodedIndex {
+            print(
+                "🗂️ LibraryIndex unsupported version:",
+                decodedIndex.version,
+                "using empty index (filesystem reconcile pending)"
             )
+        } else {
+            print("🗂️ LibraryIndex unreadable; using empty index (filesystem reconcile pending)")
         }
+
+        libraryIndex = LibraryIndex(
+            version: LibraryIndexBuilder.supportedVersion,
+            libraryID: existingLibraryID ?? UUID().uuidString,
+            lastUpdated: Date(),
+            collections: [:],
+            notes: [:]
+        )
     }
 
     private func scheduleCatchUpReconciliation(libraryURL: URL) {
@@ -1081,6 +1304,8 @@ final class LibraryManager: ObservableObject {
             guard result.changed else { return }
             self.libraryIndex = result.index
             self.persistLibraryIndex(libraryURL: libraryURL)
+            self.refreshVisibleStateFromIndex(libraryURL: libraryURL)
+            await self.migratePinnedStateIfNeeded(libraryURL: libraryURL)
         }
     }
 

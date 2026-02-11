@@ -10,7 +10,7 @@ import Foundation
 
 enum SearchExtractor {
 
-    static func extract(
+    nonisolated static func extract(
         noteID: String,
         title: String,
         markdown: String

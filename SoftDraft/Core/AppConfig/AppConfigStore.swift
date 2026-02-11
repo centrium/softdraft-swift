@@ -46,6 +46,21 @@ enum AppConfigStore {
         }
     }
 
+    static func loadSync() -> AppConfig {
+        let url = configURL
+
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return AppConfig()
+        }
+
+        do {
+            let data = try Data(contentsOf: url)
+            return try JSONDecoder().decode(AppConfig.self, from: data)
+        } catch {
+            return AppConfig()
+        }
+    }
+
     static func save(_ config: AppConfig) async {
         let url = configURL
 

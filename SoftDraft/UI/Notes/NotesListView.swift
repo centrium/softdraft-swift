@@ -222,11 +222,9 @@ struct NotesListView: View {
                     return .ignored
                 }
                 .task {
-                    await libraryManager.loadNotes(
-                        libraryURL: libraryURL,
+                    libraryManager.loadNotesFromIndex(
                         collection: collection
                     )
-                    prefetchInitialNotes()
                 }
                 .onChange(of: collection) { _, newCollection in
                     clearSearch()
@@ -236,9 +234,12 @@ struct NotesListView: View {
                             libraryURL: libraryURL,
                             collection: newCollection
                         )
-                        prefetchInitialNotes()
                     }
                     
+                }
+                .onReceive(searchIndex.$entries) { _ in
+                    guard isSearchActive else { return }
+                    scheduleSearch(for: searchQuery)
                 }
                 .onAppear {
                     syncSelectionFromModel()
@@ -388,26 +389,6 @@ struct NotesListView: View {
             hoveredSearchResult = id
         } else if hoveredSearchResult == id {
             hoveredSearchResult = nil
-        }
-    }
-
-    private func prefetchInitialNotes() {
-        guard let libraryURL = libraryManager.activeLibraryURL else { return }
-        guard libraryManager.visibleCollectionID == collection else { return }
-
-        let targets = libraryManager.visibleNotes
-            .prefix(3)
-            .map(\.id)
-
-        guard !targets.isEmpty else { return }
-
-        Task {
-            for id in targets {
-                await NotePrefetchCache.shared.preload(
-                    libraryURL: libraryURL,
-                    noteID: id
-                )
-            }
         }
     }
 
