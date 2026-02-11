@@ -17,17 +17,10 @@ let togglePinCommand = AppCommand(
     perform: { ctx in
         print("Toggle Command being run")
         guard
-            let noteID = ctx.selection.selectedNoteID,
-            let libraryURL = ctx.libraryURL
+            let noteID = ctx.selection.selectedNoteID
         else { return }
 
-        var meta = (try? LibraryMetaStore.load(libraryURL)) ?? LibraryMeta()
-
-        let current = meta.pinned[noteID] ?? false
-        meta.pinned[noteID] = !current
-
-        await LibraryMetaStore.save(meta, to: libraryURL)
-
+        ctx.libraryManager.togglePin(noteID: noteID)
         ctx.libraryManager.reloadCurrentCollection()
     }
 )

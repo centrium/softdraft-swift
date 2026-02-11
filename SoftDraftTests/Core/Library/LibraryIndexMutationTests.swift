@@ -30,6 +30,7 @@ final class LibraryIndexMutationTests: XCTestCase {
         XCTAssertNotNil(updated.notes["Inbox/hello.md"])
         XCTAssertEqual(updated.collections["Inbox"]?.noteIDs, ["Inbox/hello.md"])
         XCTAssertTrue(updated.lastUpdated > baseline)
+        XCTAssertEqual(updated.notes["Inbox/hello.md"]?.pinned, false)
 
         XCTAssertEqual(updated.collections.keys.sorted(), ["Inbox"])
 
@@ -100,6 +101,33 @@ final class LibraryIndexMutationTests: XCTestCase {
         assertInvariants(updated)
     }
 
+    func testRenameNotePreservesPinned() {
+        let initial = makeIndex(
+            collections: [
+                "Inbox": CollectionIndex(
+                    id: "Inbox",
+                    noteIDs: ["Inbox/old.md"]
+                )
+            ],
+            notes: [
+                "Inbox/old.md": makeNote(
+                    id: "Inbox/old.md",
+                    title: "Title",
+                    pinned: true
+                )
+            ]
+        )
+
+        let updated = LibraryIndexMutator.renameNote(
+            index: initial,
+            oldID: "Inbox/old.md",
+            newID: "Inbox/new.md"
+        )
+
+        XCTAssertEqual(updated.notes["Inbox/new.md"]?.pinned, true)
+        assertInvariants(updated)
+    }
+
     func testRenameNoteMovesBetweenCollections() {
         let initial = makeIndex(
             collections: [
@@ -138,6 +166,37 @@ final class LibraryIndexMutationTests: XCTestCase {
         XCTAssertEqual(updated.collections["Ideas"]?.noteIDs, ["Ideas/new.md"])
 
         assertInvariants(updated)
+    }
+
+    func testMoveNotePreservesPinned() {
+        let initial = makeIndex(
+            collections: [
+                "Inbox": CollectionIndex(
+                    id: "Inbox",
+                    noteIDs: ["Inbox/old.md"]
+                ),
+                "Ideas": CollectionIndex(
+                    id: "Ideas",
+                    noteIDs: []
+                )
+            ],
+            notes: [
+                "Inbox/old.md": makeNote(
+                    id: "Inbox/old.md",
+                    title: "Title",
+                    pinned: true
+                )
+            ]
+        )
+
+        let updated = LibraryIndexMutator.renameNote(
+            index: initial,
+            oldID: "Inbox/old.md",
+            newID: "Ideas/new.md"
+        )
+
+        XCTAssertEqual(updated.notes["Ideas/new.md"]?.pinned, true)
+        assertInvariants(updated, allowEmptyCollections: ["Inbox"])
     }
 
     func testCreateCollectionUpdatesLibraryIndex() {
@@ -200,6 +259,31 @@ final class LibraryIndexMutationTests: XCTestCase {
         assertInvariants(updated)
     }
 
+    func testRenameCollectionPreservesPinned() {
+        let initial = makeIndex(
+            collections: [
+                "Old": CollectionIndex(
+                    id: "Old",
+                    noteIDs: ["Old/a.md", "Old/b.md"]
+                )
+            ],
+            notes: [
+                "Old/a.md": makeNote(id: "Old/a.md", title: "A", pinned: true),
+                "Old/b.md": makeNote(id: "Old/b.md", title: "B", pinned: false)
+            ]
+        )
+
+        let updated = LibraryIndexMutator.renameCollection(
+            index: initial,
+            oldID: "Old",
+            newID: "New"
+        )
+
+        XCTAssertEqual(updated.notes["New/a.md"]?.pinned, true)
+        XCTAssertEqual(updated.notes["New/b.md"]?.pinned, false)
+        assertInvariants(updated)
+    }
+
     func testDeleteCollectionRemovesNotes() {
         let initial = makeIndex(
             collections: [
@@ -234,6 +318,35 @@ final class LibraryIndexMutationTests: XCTestCase {
         assertInvariants(updated)
     }
 
+    func testTogglePinUpdatesLibraryIndex() {
+        let initial = makeIndex(
+            collections: [
+                "Inbox": CollectionIndex(
+                    id: "Inbox",
+                    noteIDs: ["Inbox/a.md"]
+                )
+            ],
+            notes: [
+                "Inbox/a.md": makeNote(id: "Inbox/a.md", title: "A", pinned: false)
+            ]
+        )
+
+        let pinned = LibraryIndexMutator.togglePin(
+            index: initial,
+            noteID: "Inbox/a.md"
+        )
+
+        XCTAssertEqual(pinned.notes["Inbox/a.md"]?.pinned, true)
+
+        let unpinned = LibraryIndexMutator.togglePin(
+            index: pinned,
+            noteID: "Inbox/a.md"
+        )
+
+        XCTAssertEqual(unpinned.notes["Inbox/a.md"]?.pinned, false)
+        assertInvariants(unpinned)
+    }
+
     private func makeIndex(
         lastUpdated: Date = Date(timeIntervalSince1970: 0),
         collections: [String: CollectionIndex] = [:],
@@ -251,13 +364,15 @@ final class LibraryIndexMutationTests: XCTestCase {
     private func makeNote(
         id: String,
         title: String,
-        modified: Date = Date(timeIntervalSince1970: 100)
+        modified: Date = Date(timeIntervalSince1970: 100),
+        pinned: Bool = false
     ) -> NoteIndex {
         NoteIndex(
             id: id,
             path: id,
             title: title,
-            modified: modified
+            modified: modified,
+            pinned: pinned
         )
     }
 

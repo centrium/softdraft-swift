@@ -33,17 +33,6 @@ extension CollectionStore {
         // 1️⃣ Perform the authoritative operation
         try FileManager.default.moveItem(at: oldURL, to: newURL)
 
-        // 2️⃣ Update meta best-effort (non-blocking)
-        Task {
-            let meta = (try? LibraryMetaStore.load(libraryURL)) ?? LibraryMeta()
-            let next = MetaNormalizer.afterCollectionRename(
-                meta: meta,
-                oldName: oldName,
-                newName: cleanNew
-            )
-            await LibraryMetaStore.save(next, to: libraryURL)
-        }
-
         return cleanNew
     }
 }

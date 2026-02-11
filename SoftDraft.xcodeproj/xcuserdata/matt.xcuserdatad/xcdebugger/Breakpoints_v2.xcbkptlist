@@ -64,7 +64,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "914"
             endingLineNumber = "914"
-            landmarkName = "preferredInitialCollection(libraryURL:available:)"
+            landmarkName = "reloadCollections(libraryURL:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -80,7 +80,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "915"
             endingLineNumber = "915"
-            landmarkName = "preferredInitialCollection(libraryURL:available:)"
+            landmarkName = "reloadCollections(libraryURL:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

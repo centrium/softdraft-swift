@@ -27,16 +27,5 @@ extension CollectionStore {
         // 1️⃣ Authoritative operation
         try FileManager.default.removeItem(at: url)
 
-        // 2️⃣ Clean up metadata synchronously so pins/tasks stay consistent
-        do {
-            let meta = (try? LibraryMetaStore.load(libraryURL)) ?? LibraryMeta()
-            let next = MetaNormalizer.afterCollectionDelete(
-                meta: meta,
-                collection: name
-            )
-            try LibraryMetaStore.saveSync(next, to: libraryURL)
-        } catch {
-            assertionFailure("Failed to update metadata after deleting collection: \(error)")
-        }
     }
 }

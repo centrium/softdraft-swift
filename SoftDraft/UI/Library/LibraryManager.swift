@@ -44,6 +44,7 @@ final class LibraryManager: ObservableObject {
     private var boundSearchIndex: SearchIndex?
     private var isLibraryIndexDirty = false
     private var hasRunCatchUpReconciliation = false
+    private var hasRunPinnedMigration = false
 
     // MARK: - Startup
 
@@ -180,7 +181,11 @@ final class LibraryManager: ObservableObject {
             }.value
 
             guard visibleCollectionID == collection else { return }
-            visibleNotes = sortNotes(fetched)
+            let enriched = fetched.map { summary in
+                let pinned = pinnedState(for: summary.id)
+                return summaryWithPinned(summary, pinned: pinned)
+            }
+            visibleNotes = sortNotes(enriched)
             boundSearchIndex.map { rebuildSearchIndex($0) }
         } catch {
             guard visibleCollectionID == collection else { return }
@@ -279,6 +284,7 @@ final class LibraryManager: ObservableObject {
             libraryURL: libraryURL
         )
 
+        guard activeLibraryURL == libraryURL else { return }
         guard result.changed else { return }
         libraryIndex = result.index
         persistLibraryIndex(libraryURL: libraryURL)
@@ -309,12 +315,11 @@ final class LibraryManager: ObservableObject {
             return
         }
 
-        let oldSummary = visibleNotes[index]
-
+        let pinned = pinnedState(for: newID)
         guard let newSummary = try? NoteSummaryFactory.make(
             libraryURL: libraryURL,
             noteID: newID,
-            pinned: oldSummary.pinned
+            pinned: pinned
         ) else {
             return
         }
@@ -335,7 +340,7 @@ final class LibraryManager: ObservableObject {
             return
         }
 
-        let pinned = visibleNotes[index].pinned
+        let pinned = pinnedState(for: noteID)
 
         guard let summary = try? NoteSummaryFactory.make(
             libraryURL: libraryURL,
@@ -474,6 +479,28 @@ final class LibraryManager: ObservableObject {
             finalizeSelectionAfterRemoval(preferred: selectionPlan.preferredNextID)
         }
     }
+
+    func togglePin(
+        noteID: String
+    ) {
+        guard
+            let libraryURL = activeLibraryURL,
+            let index = libraryIndex
+        else { return }
+
+        libraryIndex = LibraryIndexMutator.togglePin(
+            index: index,
+            noteID: noteID
+        )
+        persistLibraryIndex(libraryURL: libraryURL)
+
+        if let index = visibleNotes.firstIndex(where: { $0.id == noteID }),
+           let pinned = libraryIndex?.notes[noteID]?.pinned {
+            let summary = summaryWithPinned(visibleNotes[index], pinned: pinned)
+            visibleNotes[index] = summary
+            visibleNotes = sortNotes(visibleNotes)
+        }
+    }
     
     // MARK: - Collections
     
@@ -584,6 +611,7 @@ final class LibraryManager: ObservableObject {
         startupState = .loaded(url)
         resetVisibleState()
         hasRunCatchUpReconciliation = false
+        hasRunPinnedMigration = false
 
         // ✅ NEW: load or create library index
         loadOrCreateLibraryIndex(libraryURL: url)
@@ -635,13 +663,32 @@ final class LibraryManager: ObservableObject {
         return noteID.hasPrefix("\(visibleCollectionID)/")
     }
 
+    private func pinnedState(for noteID: String) -> Bool {
+        libraryIndex?.notes[noteID]?.pinned ?? false
+    }
+
+    private func summaryWithPinned(
+        _ summary: NoteSummary,
+        pinned: Bool
+    ) -> NoteSummary {
+        guard summary.pinned != pinned else { return summary }
+        return NoteSummary(
+            id: summary.id,
+            name: summary.name,
+            title: summary.title,
+            relativeDir: summary.relativeDir,
+            modifiedAt: summary.modifiedAt,
+            pinned: pinned
+        )
+    }
+
     private func handleAddition(
         noteID: String,
         libraryURL: URL
     ) {
         guard isNoteInVisibleCollection(noteID) else { return }
 
-        let pinned = visibleNotes.first(where: { $0.id == noteID })?.pinned ?? false
+        let pinned = pinnedState(for: noteID)
         guard let summary = try? NoteSummaryFactory.make(
             libraryURL: libraryURL,
             noteID: noteID,
@@ -699,7 +746,7 @@ final class LibraryManager: ObservableObject {
         libraryURL: URL
     ) {
         guard isNoteInVisibleCollection(noteID) else { return }
-        let pinned = visibleNotes.first(where: { $0.id == noteID })?.pinned ?? false
+        let pinned = pinnedState(for: noteID)
 
         guard let summary = try? NoteSummaryFactory.make(
             libraryURL: libraryURL,
@@ -717,7 +764,7 @@ final class LibraryManager: ObservableObject {
     ) {
         let wasVisible = isNoteInVisibleCollection(from)
         let isVisible = isNoteInVisibleCollection(to)
-        let pinned = visibleNotes.first(where: { $0.id == from })?.pinned ?? false
+        let pinned = pinnedState(for: from)
 
         if wasVisible {
             removeNote(withID: from)
@@ -996,6 +1043,7 @@ final class LibraryManager: ObservableObject {
         if let index = decodedIndex,
            LibraryIndexBuilder.isSupportedVersion(index.version) {
             libraryIndex = index
+            schedulePinnedMigration(libraryURL: libraryURL)
             return
         }
 
@@ -1021,6 +1069,7 @@ final class LibraryManager: ObservableObject {
             guard let self else { return }
             await Task.yield()
 
+            guard self.activeLibraryURL == libraryURL else { return }
             guard let index = self.libraryIndex else { return }
 
             let result = await LibraryIndexReconciler.reconcileAgainstFilesystem(
@@ -1028,10 +1077,59 @@ final class LibraryManager: ObservableObject {
                 index: index
             )
 
+            guard self.activeLibraryURL == libraryURL else { return }
             guard result.changed else { return }
             self.libraryIndex = result.index
             self.persistLibraryIndex(libraryURL: libraryURL)
         }
+    }
+
+    private func schedulePinnedMigration(libraryURL: URL) {
+        Task { [weak self] in
+            guard let self else { return }
+            await self.migratePinnedStateIfNeeded(libraryURL: libraryURL)
+        }
+    }
+
+    private func migratePinnedStateIfNeeded(libraryURL: URL) async {
+        guard activeLibraryURL == libraryURL else { return }
+        guard !hasRunPinnedMigration else { return }
+        guard let index = libraryIndex else { return }
+
+        hasRunPinnedMigration = true
+
+        let legacyPinned = LibraryMetaStore.loadLegacyPinned(libraryURL)
+        guard !legacyPinned.isEmpty else { return }
+
+        var next = index
+        var changed = false
+
+        for (noteID, isPinned) in legacyPinned where isPinned {
+            guard let existing = next.notes[noteID] else { continue }
+            guard !existing.pinned else { continue }
+
+            next = LibraryIndexMutator.setPinned(
+                index: next,
+                noteID: noteID,
+                pinned: true
+            )
+            changed = true
+        }
+
+        if changed {
+            libraryIndex = next
+            persistLibraryIndex(libraryURL: libraryURL)
+            if !visibleNotes.isEmpty {
+                let updated = visibleNotes.map { summary in
+                    let pinned = pinnedState(for: summary.id)
+                    return summaryWithPinned(summary, pinned: pinned)
+                }
+                visibleNotes = sortNotes(updated)
+            }
+        }
+
+        let meta = (try? LibraryMetaStore.load(libraryURL)) ?? LibraryMeta()
+        await LibraryMetaStore.save(meta, to: libraryURL)
     }
 
     func rebuildLibraryIndex(
@@ -1043,8 +1141,10 @@ final class LibraryManager: ObservableObject {
             libraryURL: libraryURL,
             existingLibraryID: libraryID
         )
+        guard activeLibraryURL == libraryURL else { return }
         libraryIndex = rebuilt
         persistLibraryIndex(libraryURL: libraryURL)
+        await migratePinnedStateIfNeeded(libraryURL: libraryURL)
     }
     
     private func persistLibraryIndex(libraryURL: URL) {

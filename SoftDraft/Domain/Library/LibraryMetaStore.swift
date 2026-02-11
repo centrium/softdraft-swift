@@ -11,6 +11,10 @@ enum LibraryMetaStore {
 
     private static let fileName = ".softdraft-meta.json"
 
+    private struct LegacyLibraryMeta: Decodable {
+        let pinned: [String: Bool]?
+    }
+
     private static func metaURL(for libraryURL: URL) -> URL {
         libraryURL.appendingPathComponent(fileName)
     }
@@ -51,5 +55,24 @@ enum LibraryMetaStore {
         var meta = (try? load(libraryURL)) ?? LibraryMeta()
         meta.lastActiveCollectionId = collectionId
         await save(meta, to: libraryURL)
+    }
+
+    static func loadLegacyPinned(
+        _ libraryURL: URL
+    ) -> [String: Bool] {
+        let url = metaURL(for: libraryURL)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return [:]
+        }
+
+        guard let data = try? Data(contentsOf: url) else {
+            return [:]
+        }
+
+        guard let legacy = try? JSONDecoder().decode(LegacyLibraryMeta.self, from: data) else {
+            return [:]
+        }
+
+        return legacy.pinned ?? [:]
     }
 }

@@ -10,5 +10,4 @@ import Foundation
 struct LibraryMeta: Codable {
     var version: Int = 1
     var lastActiveCollectionId: String?
-    var pinned: [String: Bool] = [:]
 }

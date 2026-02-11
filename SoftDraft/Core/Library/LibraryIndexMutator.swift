@@ -9,6 +9,22 @@ import Foundation
 
 enum LibraryIndexMutator {
 
+    struct FilesystemNoteData {
+        let title: String?
+        let modified: Date?
+        let baseNote: NoteIndex?
+
+        init(
+            title: String? = nil,
+            modified: Date? = nil,
+            baseNote: NoteIndex? = nil
+        ) {
+            self.title = title
+            self.modified = modified
+            self.baseNote = baseNote
+        }
+    }
+
     static func createNote(
         index: LibraryIndex,
         noteID: String,
@@ -28,7 +44,8 @@ enum LibraryIndexMutator {
             id: noteID,
             path: noteID,
             title: title,
-            modified: Date()
+            modified: Date(),
+            pinned: false
         )
 
         if !(next.collections[collectionID]?.noteIDs.contains(noteID) ?? false) {
@@ -54,7 +71,8 @@ enum LibraryIndexMutator {
     static func renameNote(
         index: LibraryIndex,
         oldID: String,
-        newID: String
+        newID: String,
+        filesystemData: FilesystemNoteData? = nil
     ) -> LibraryIndex {
         var next = index
 
@@ -66,14 +84,18 @@ enum LibraryIndexMutator {
         next.notes.removeValue(forKey: oldID)
         next.collections[oldCollection]?.noteIDs.removeAll { $0 == oldID }
 
-        let newNote = NoteIndex(
-            id: newID,
-            path: newID,
-            title: oldNote.title,
-            modified: Date()
+        let modified = filesystemData?.modified ?? Date()
+        let data = FilesystemNoteData(
+            title: filesystemData?.title,
+            modified: modified,
+            baseNote: oldNote
         )
 
-        next.notes[newID] = newNote
+        next = updateNoteFromFilesystem(
+            index: next,
+            noteID: newID,
+            filesystemData: data
+        )
 
         if next.collections[newCollection] == nil {
             next.collections[newCollection] = CollectionIndex(
@@ -82,7 +104,9 @@ enum LibraryIndexMutator {
             )
         }
 
-        next.collections[newCollection]?.noteIDs.append(newID)
+        if !(next.collections[newCollection]?.noteIDs.contains(newID) ?? false) {
+            next.collections[newCollection]?.noteIDs.append(newID)
+        }
 
         next.lastUpdated = Date()
         return next
@@ -133,7 +157,8 @@ enum LibraryIndexMutator {
                     id: newNoteID,
                     path: newNoteID,
                     title: oldNote.title,
-                    modified: Date()
+                    modified: Date(),
+                    pinned: oldNote.pinned
                 )
                 next.notes[newNoteID] = updatedNote
             }
@@ -169,7 +194,91 @@ enum LibraryIndexMutator {
         return next
     }
 
+    static func updateNoteFromFilesystem(
+        index: LibraryIndex,
+        noteID: String,
+        filesystemData: FilesystemNoteData
+    ) -> LibraryIndex {
+        var next = index
+
+        let existing = next.notes[noteID] ?? filesystemData.baseNote
+
+        if let existing {
+            let updated = NoteIndex(
+                id: noteID,
+                path: noteID,
+                title: filesystemData.title ?? existing.title,
+                modified: filesystemData.modified ?? existing.modified,
+                pinned: existing.pinned
+            )
+            next.notes[noteID] = updated
+            return next
+        }
+
+        let title = filesystemData.title ?? titleFallback(for: noteID)
+        let modified = filesystemData.modified ?? Date()
+
+        next.notes[noteID] = NoteIndex(
+            id: noteID,
+            path: noteID,
+            title: title,
+            modified: modified,
+            pinned: false
+        )
+
+        return next
+    }
+
+    static func togglePin(
+        index: LibraryIndex,
+        noteID: String
+    ) -> LibraryIndex {
+        var next = index
+        guard let existing = next.notes[noteID] else { return next }
+
+        next.notes[noteID] = NoteIndex(
+            id: existing.id,
+            path: existing.path,
+            title: existing.title,
+            modified: existing.modified,
+            pinned: !existing.pinned
+        )
+
+        next.lastUpdated = Date()
+        return next
+    }
+
+    static func setPinned(
+        index: LibraryIndex,
+        noteID: String,
+        pinned: Bool
+    ) -> LibraryIndex {
+        var next = index
+        guard let existing = next.notes[noteID] else { return next }
+        guard existing.pinned != pinned else { return next }
+
+        next.notes[noteID] = NoteIndex(
+            id: existing.id,
+            path: existing.path,
+            title: existing.title,
+            modified: existing.modified,
+            pinned: pinned
+        )
+
+        next.lastUpdated = Date()
+        return next
+    }
+
     private static func collectionID(for noteID: String) -> String {
         noteID.split(separator: "/").first.map(String.init) ?? "Inbox"
+    }
+
+    private static func titleFallback(for noteID: String) -> String {
+        let filename = (noteID as NSString).lastPathComponent
+        return filename.replacingOccurrences(
+            of: ".md",
+            with: "",
+            options: .caseInsensitive
+        )
     }
 }

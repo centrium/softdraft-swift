@@ -92,7 +92,8 @@ enum LibraryIndexBuilder {
                     id: noteID,
                     path: noteID,
                     title: title,
-                    modified: modified
+                    modified: modified,
+                    pinned: false
                 )
 
                 collections[collectionID]?.noteIDs.append(noteID)

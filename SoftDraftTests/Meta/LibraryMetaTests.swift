@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 @testable import SoftDraft
 
@@ -11,7 +12,6 @@ final class LibraryMetaStoreTests: XCTestCase {
 
         XCTAssertEqual(meta.version, 1)
         XCTAssertNil(meta.lastActiveCollectionId)
-        XCTAssertTrue(meta.pinned.isEmpty)
     }
 
     func testSavePersistsMetaToDisk() async throws {
@@ -19,8 +19,7 @@ final class LibraryMetaStoreTests: XCTestCase {
 
         let meta = LibraryMeta(
             version: 3,
-            lastActiveCollectionId: "Work",
-            pinned: ["Inbox/today.md": true]
+            lastActiveCollectionId: "Work"
         )
 
         await LibraryMetaStore.save(meta, to: library)
@@ -29,20 +28,18 @@ final class LibraryMetaStoreTests: XCTestCase {
 
         XCTAssertEqual(loaded.version, 3)
         XCTAssertEqual(loaded.lastActiveCollectionId, "Work")
-        XCTAssertEqual(loaded.pinned, ["Inbox/today.md": true])
     }
 
-    func testUpdateLastActiveCollectionPreservesPins() async throws {
+    func testUpdateLastActiveCollection() async throws {
         let library = try TestLibrary.makeTempLibrary()
 
         let meta = LibraryMeta(
             version: 2,
-            lastActiveCollectionId: "Inbox",
-            pinned: ["Inbox/alpha.md": true, "Work/beta.md": true]
+            lastActiveCollectionId: "Inbox"
         )
 
         await LibraryMetaStore.save(meta, to: library)
- 
+
         await LibraryMetaStore.updateLastActiveCollection(
             library,
             collectionId: "Archive"
@@ -51,43 +48,29 @@ final class LibraryMetaStoreTests: XCTestCase {
         let loaded = try LibraryMetaStore.load(library)
 
         XCTAssertEqual(loaded.lastActiveCollectionId, "Archive")
-        XCTAssertEqual(loaded.pinned, meta.pinned)
-    }
-}
-
-final class MetaNormalizerTests: XCTestCase {
-
-    func testAfterCollectionRenameMigratesPinnedKeys() {
-        var meta = LibraryMeta()
-        meta.pinned = [
-            "Inbox/note-1.md": true,
-            "Work/keep.md": true
-        ]
-
-        let updated = MetaNormalizer.afterCollectionRename(
-            meta: meta,
-            oldName: "Inbox",
-            newName: "Archive"
-        )
-
-        XCTAssertNil(updated.pinned["Inbox/note-1.md"])
-        XCTAssertEqual(updated.pinned["Archive/note-1.md"], true)
-        XCTAssertEqual(updated.pinned["Work/keep.md"], true)
     }
 
-    func testAfterCollectionDeleteDropsPinnedKeys() {
-        var meta = LibraryMeta()
-        meta.pinned = [
-            "Inbox/remove.md": true,
-            "Archive/keep.md": true
+    func testLoadLegacyPinnedReadsPinnedValues() throws {
+        let library = try TestLibrary.makeTempLibrary()
+        let url = library.appendingPathComponent(".softdraft-meta.json")
+
+        let payload: [String: Any] = [
+            "version": 1,
+            "lastActiveCollectionId": "Inbox",
+            "pinned": [
+                "Inbox/alpha.md": true,
+                "Work/beta.md": true
+            ]
         ]
 
-        let updated = MetaNormalizer.afterCollectionDelete(
-            meta: meta,
-            collection: "Inbox"
-        )
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        try data.write(to: url, options: [.atomic])
 
-        XCTAssertNil(updated.pinned["Inbox/remove.md"])
-        XCTAssertEqual(updated.pinned["Archive/keep.md"], true)
+        let pinned = LibraryMetaStore.loadLegacyPinned(library)
+
+        XCTAssertEqual(
+            pinned,
+            ["Inbox/alpha.md": true, "Work/beta.md": true]
+        )
     }
 }

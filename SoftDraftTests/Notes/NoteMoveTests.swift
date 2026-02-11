@@ -79,31 +79,4 @@ final class NoteMoveTests: XCTestCase {
         XCTAssertTrue(newID.contains("duplicate-1"))
     }
 
-    func testMoveMigratesPin() async throws {
-        let library = try TestLibrary.makeTempLibrary()
-
-        let created = try NoteStore.create(
-            libraryURL: library,
-            collection: "Inbox",
-            title: "Pinned Move"
-        )
-
-        var meta = try LibraryMetaStore.load(library)
-        meta.pinned[created.summary.id] = true
-        await LibraryMetaStore.save(meta, to: library)
-
-        let newID = try NoteStore.move(
-            libraryURL: library,
-            noteID: created.summary.id,
-            destCollection: "Archive"
-        )
-
-        let updated = try await waitForMetaUpdate(in: library) { meta in
-            meta.pinned[created.summary.id] == nil &&
-            meta.pinned[newID] == true
-        }
-
-        XCTAssertNil(updated.pinned[created.summary.id])
-        XCTAssertEqual(updated.pinned[newID], true)
-    }
 }

@@ -30,15 +30,6 @@ extension NoteStore {
         // 1️⃣ Authoritative operation
         try FileManager.default.removeItem(at: url)
 
-        // 2️⃣ Best-effort meta cleanup (async, non-blocking)
-        Task {
-            var meta = (try? LibraryMetaStore.load(libraryURL)) ?? LibraryMeta()
-
-            if meta.pinned.removeValue(forKey: noteID) != nil {
-                await LibraryMetaStore.save(meta, to: libraryURL)
-            }
-        }
-
         return noteID
     }
 }

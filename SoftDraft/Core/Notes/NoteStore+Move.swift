@@ -66,17 +66,6 @@ extension NoteStore {
 
         let newID = "\(destCollection)/\(newFilename)"
 
-        // 2️⃣ Update metadata synchronously so callers observe consistent pin state
-        do {
-            var meta = (try? LibraryMetaStore.load(libraryURL)) ?? LibraryMeta()
-            if meta.pinned.removeValue(forKey: noteID) != nil {
-                meta.pinned[newID] = true
-                try LibraryMetaStore.saveSync(meta, to: libraryURL)
-            }
-        } catch {
-            assertionFailure("Failed to migrate pinned metadata during move: \(error)")
-        }
-
         return newID
     }
 }

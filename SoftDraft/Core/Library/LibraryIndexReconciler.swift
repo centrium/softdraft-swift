@@ -14,12 +14,12 @@ enum LibraryIndexReconciler {
         let changed: Bool
     }
 
-    private struct NoteSnapshot {
+    struct NoteSnapshot {
         let modified: Date
         let filename: String
     }
 
-    private struct FilesystemSnapshot {
+    struct FilesystemSnapshot {
         var collections: Set<String>
         var notes: [String: NoteSnapshot]
     }
@@ -29,22 +29,10 @@ enum LibraryIndexReconciler {
         to index: LibraryIndex,
         libraryURL: URL
     ) async -> Result {
-        await Task.detached(priority: .utility) {
-            var next = index
-            var changed = false
-
-            for event in events {
-                if apply(event, to: &next, libraryURL: libraryURL) {
-                    changed = true
-                }
-            }
-
-            if changed {
-                next.lastUpdated = Date()
-            }
-
-            return Result(index: next, changed: changed)
-        }.value
+        let provider: NoteMetadataProvider = { noteID in
+            noteMetadata(noteID: noteID, libraryURL: libraryURL)
+        }
+        return await applyEvents(events, to: index, metadataProvider: provider)
     }
 
     static func reconcileAgainstFilesystem(
@@ -53,81 +41,98 @@ enum LibraryIndexReconciler {
     ) async -> Result {
         await Task.detached(priority: .utility) {
             let snapshot = captureFilesystemSnapshot(libraryURL: libraryURL)
-
-            let indexNoteIDs = Set(index.notes.keys)
-            let fsNoteIDs = Set(snapshot.notes.keys)
-
-            var missingNotes = indexNoteIDs.subtracting(fsNoteIDs)
-            var newNotes = fsNoteIDs.subtracting(indexNoteIDs)
-
-            let renamePairs = detectRenamePairs(
-                missingNotes: &missingNotes,
-                newNotes: &newNotes,
-                snapshot: snapshot,
-                index: index
-            )
-
-            var events: [LibraryFilesystemEvent] = []
-            events.append(contentsOf: renamePairs.map {
-                .renamed(from: $0.oldID, to: $0.newID)
-            })
-
-            events.append(contentsOf: newNotes.map { .added(noteID: $0) })
-            events.append(contentsOf: missingNotes.map { .deleted(noteID: $0) })
-
-            let modifiedEvents = indexNoteIDs.intersection(fsNoteIDs).compactMap { noteID -> LibraryFilesystemEvent? in
-                guard
-                    let snapshotNote = snapshot.notes[noteID],
-                    let indexed = index.notes[noteID]
-                else { return nil }
-
-                let delta = abs(snapshotNote.modified.timeIntervalSince(indexed.modified))
-                if delta > 0.0005 {
-                    return .modified(noteID: noteID)
-                }
-                return nil
-            }
-            events.append(contentsOf: modifiedEvents)
-
-            let existingCollections = Set(index.collections.keys)
-            let newCollections = snapshot.collections.subtracting(existingCollections)
-            let missingCollections = existingCollections.subtracting(snapshot.collections)
-
-            events.append(contentsOf: newCollections.map { .collectionAdded(collectionID: $0) })
-            events.append(contentsOf: missingCollections.map { .collectionDeleted(collectionID: $0) })
-
-            var next = index
-            var changed = false
-            for event in events {
-                if apply(event, to: &next, libraryURL: libraryURL) {
-                    changed = true
-                }
-            }
-
-            if changed {
-                next.lastUpdated = Date()
-            }
-
-            return Result(index: next, changed: changed)
+            return reconcileAgainstSnapshot(snapshot: snapshot, index: index)
         }.value
     }
+
+    static func reconcileAgainstSnapshot(
+        snapshot: FilesystemSnapshot,
+        index: LibraryIndex
+    ) -> Result {
+        let indexNoteIDs = Set(index.notes.keys)
+        let fsNoteIDs = Set(snapshot.notes.keys)
+
+        var missingNotes = indexNoteIDs.subtracting(fsNoteIDs)
+        var newNotes = fsNoteIDs.subtracting(indexNoteIDs)
+
+        let renamePairs = detectRenamePairs(
+            missingNotes: &missingNotes,
+            newNotes: &newNotes,
+            snapshot: snapshot,
+            index: index
+        )
+
+        var events: [LibraryFilesystemEvent] = []
+        events.append(contentsOf: renamePairs.map {
+            .renamed(from: $0.oldID, to: $0.newID)
+        })
+
+        events.append(contentsOf: newNotes.map { .added(noteID: $0) })
+        events.append(contentsOf: missingNotes.map { .deleted(noteID: $0) })
+
+        let modifiedEvents = indexNoteIDs.intersection(fsNoteIDs).compactMap { noteID -> LibraryFilesystemEvent? in
+            guard
+                let snapshotNote = snapshot.notes[noteID],
+                let indexed = index.notes[noteID]
+            else { return nil }
+
+            let delta = abs(snapshotNote.modified.timeIntervalSince(indexed.modified))
+            if delta > 0.0005 {
+                return .modified(noteID: noteID)
+            }
+            return nil
+        }
+        events.append(contentsOf: modifiedEvents)
+
+        let existingCollections = Set(index.collections.keys)
+        let newCollections = snapshot.collections.subtracting(existingCollections)
+        let missingCollections = existingCollections.subtracting(snapshot.collections)
+
+        events.append(contentsOf: newCollections.map { .collectionAdded(collectionID: $0) })
+        events.append(contentsOf: missingCollections.map { .collectionDeleted(collectionID: $0) })
+
+        let provider: NoteMetadataProvider = { noteID in
+            guard let note = snapshot.notes[noteID] else { return nil }
+            let title = note.filename
+                .replacingOccurrences(of: ".md", with: "", options: .caseInsensitive)
+            return (note.modified, title)
+        }
+
+        return applyEventsSync(
+            events,
+            to: index,
+            metadataProvider: provider
+        )
+    }
+
+    static func applyEvents(
+        _ events: [LibraryFilesystemEvent],
+        to index: LibraryIndex,
+        metadataProvider: @escaping NoteMetadataProvider
+    ) async -> Result {
+        await Task.detached(priority: .utility) {
+            applyEventsSync(events, to: index, metadataProvider: metadataProvider)
+        }.value
+    }
+
+    typealias NoteMetadataProvider = @Sendable (String) -> (modified: Date, title: String)?
 
     private static func apply(
         _ event: LibraryFilesystemEvent,
         to index: inout LibraryIndex,
-        libraryURL: URL
+        metadataProvider: @escaping NoteMetadataProvider
     ) -> Bool {
         switch event {
         case .added(let noteID):
-            return applyNoteAdded(noteID, to: &index, libraryURL: libraryURL)
+            return applyNoteAdded(noteID, to: &index, metadataProvider: metadataProvider)
         case .deleted(let noteID):
             return applyNoteDeleted(noteID, to: &index)
         case let .renamed(from, to):
-            return applyNoteRenamed(from: from, to: to, index: &index, libraryURL: libraryURL)
+            return applyNoteRenamed(from: from, to: to, index: &index, metadataProvider: metadataProvider)
         case .modified(let noteID):
-            return applyNoteModified(noteID, to: &index, libraryURL: libraryURL)
+            return applyNoteModified(noteID, to: &index, metadataProvider: metadataProvider)
         case let .collectionRenamed(from, to):
-            return applyCollectionRenamed(from: from, to: to, index: &index, libraryURL: libraryURL)
+            return applyCollectionRenamed(from: from, to: to, index: &index, metadataProvider: metadataProvider)
         case let .collectionDeleted(collectionID):
             return applyCollectionDeleted(collectionID, to: &index)
         case let .collectionAdded(collectionID):
@@ -138,7 +143,7 @@ enum LibraryIndexReconciler {
     private static func applyNoteAdded(
         _ noteID: String,
         to index: inout LibraryIndex,
-        libraryURL: URL
+        metadataProvider: @escaping NoteMetadataProvider
     ) -> Bool {
         guard let parsed = parseNoteID(noteID) else { return false }
         let collectionID = parsed.collectionID
@@ -153,19 +158,25 @@ enum LibraryIndexReconciler {
             changed = true
         }
 
-        if index.notes[noteID] == nil {
-            let metadata = noteMetadata(
-                noteID: noteID,
-                libraryURL: libraryURL
-            )
-            let title = metadata?.title ?? parsed.titleFallback
-            let modified = metadata?.modified ?? Date()
+        let metadata = metadataProvider(noteID)
+        let title = metadata?.title ?? parsed.titleFallback
+        let modified = metadata?.modified ?? Date()
 
-            index.notes[noteID] = NoteIndex(
-                id: noteID,
-                path: noteID,
-                title: title,
-                modified: modified
+        if let existing = index.notes[noteID] {
+            let delta = abs(existing.modified.timeIntervalSince(modified))
+            if delta > 0.0005 || existing.title != title || existing.path != noteID {
+                index = LibraryIndexMutator.updateNoteFromFilesystem(
+                    index: index,
+                    noteID: noteID,
+                    filesystemData: .init(title: title, modified: modified)
+                )
+                changed = true
+            }
+        } else {
+            index = LibraryIndexMutator.updateNoteFromFilesystem(
+                index: index,
+                noteID: noteID,
+                filesystemData: .init(title: title, modified: modified)
             )
             changed = true
         }
@@ -209,7 +220,7 @@ enum LibraryIndexReconciler {
         from oldID: String,
         to newID: String,
         index: inout LibraryIndex,
-        libraryURL: URL
+        metadataProvider: @escaping NoteMetadataProvider
     ) -> Bool {
         guard oldID != newID else { return false }
 
@@ -217,47 +228,19 @@ enum LibraryIndexReconciler {
             if index.notes[newID] != nil {
                 return false
             }
-            return applyNoteAdded(newID, to: &index, libraryURL: libraryURL)
+            return applyNoteAdded(newID, to: &index, metadataProvider: metadataProvider)
         }
 
-        let oldCollection = parseNoteID(oldID)?.collectionID
-        let newCollection = parseNoteID(newID)?.collectionID
-
-        let oldNote = index.notes.removeValue(forKey: oldID)
-
-        if let oldCollection {
-            index.collections[oldCollection]?.noteIDs.removeAll { $0 == oldID }
-        }
-
-        if let newCollection, index.collections[newCollection] == nil {
-            index.collections[newCollection] = CollectionIndex(
-                id: newCollection,
-                noteIDs: []
+        let metadata = metadataProvider(newID)
+        index = LibraryIndexMutator.renameNote(
+            index: index,
+            oldID: oldID,
+            newID: newID,
+            filesystemData: .init(
+                title: metadata?.title,
+                modified: metadata?.modified
             )
-        }
-
-        if let oldNote {
-            let updatedModified = noteMetadata(
-                noteID: newID,
-                libraryURL: libraryURL
-            )?.modified ?? oldNote.modified
-
-            let updatedNote = NoteIndex(
-                id: newID,
-                path: newID,
-                title: oldNote.title,
-                modified: updatedModified
-            )
-            index.notes[newID] = updatedNote
-        } else {
-            _ = applyNoteAdded(newID, to: &index, libraryURL: libraryURL)
-        }
-
-        if let newCollection {
-            if !(index.collections[newCollection]?.noteIDs.contains(newID) ?? false) {
-                index.collections[newCollection]?.noteIDs.append(newID)
-            }
-        }
+        )
 
         return true
     }
@@ -265,27 +248,23 @@ enum LibraryIndexReconciler {
     private static func applyNoteModified(
         _ noteID: String,
         to index: inout LibraryIndex,
-        libraryURL: URL
+        metadataProvider: @escaping NoteMetadataProvider
     ) -> Bool {
         guard let existing = index.notes[noteID] else {
-            return applyNoteAdded(noteID, to: &index, libraryURL: libraryURL)
+            return applyNoteAdded(noteID, to: &index, metadataProvider: metadataProvider)
         }
 
-        guard let modified = noteMetadata(
-            noteID: noteID,
-            libraryURL: libraryURL
-        )?.modified else {
+        guard let modified = metadataProvider(noteID)?.modified else {
             return false
         }
 
         let delta = abs(existing.modified.timeIntervalSince(modified))
         guard delta > 0.0005 else { return false }
 
-        index.notes[noteID] = NoteIndex(
-            id: existing.id,
-            path: existing.path,
-            title: existing.title,
-            modified: modified
+        index = LibraryIndexMutator.updateNoteFromFilesystem(
+            index: index,
+            noteID: noteID,
+            filesystemData: .init(modified: modified)
         )
 
         return true
@@ -330,7 +309,7 @@ enum LibraryIndexReconciler {
         from oldID: String,
         to newID: String,
         index: inout LibraryIndex,
-        libraryURL: URL
+        metadataProvider: @escaping NoteMetadataProvider
     ) -> Bool {
         guard oldID != newID else { return false }
 
@@ -356,23 +335,22 @@ enum LibraryIndexReconciler {
             let suffix = noteID.dropFirst(oldID.count + 1)
             let newNoteID = "\(newID)/\(suffix)"
 
-            if let oldNote = index.notes.removeValue(forKey: noteID) {
-                let updatedModified = noteMetadata(
-                    noteID: newNoteID,
-                    libraryURL: libraryURL
-                )?.modified ?? oldNote.modified
-
-                index.notes[newNoteID] = NoteIndex(
-                    id: newNoteID,
-                    path: newNoteID,
-                    title: oldNote.title,
-                    modified: updatedModified
+            if index.notes[noteID] != nil {
+                let metadata = metadataProvider(newNoteID)
+                index = LibraryIndexMutator.renameNote(
+                    index: index,
+                    oldID: noteID,
+                    newID: newNoteID,
+                    filesystemData: .init(
+                        title: metadata?.title,
+                        modified: metadata?.modified
+                    )
                 )
+                updatedNoteIDs.append(newNoteID)
             } else {
-                _ = applyNoteAdded(newNoteID, to: &index, libraryURL: libraryURL)
+                _ = applyNoteAdded(newNoteID, to: &index, metadataProvider: metadataProvider)
+                updatedNoteIDs.append(newNoteID)
             }
-
-            updatedNoteIDs.append(newNoteID)
         }
 
         if index.collections[newID] == nil {
@@ -529,6 +507,59 @@ enum LibraryIndexReconciler {
             newNotes.remove(pair.newID)
         }
 
+        if !missingNotes.isEmpty, !newNotes.isEmpty {
+            var timestampPairs: [(oldID: String, newID: String)] = []
+
+            for oldID in missingNotes {
+                guard let oldNote = index.notes[oldID] else { continue }
+
+                var candidate: String?
+                for newID in newNotes {
+                    guard let newSnapshot = snapshot.notes[newID] else { continue }
+                    let delta = abs(oldNote.modified.timeIntervalSince(newSnapshot.modified))
+                    guard delta <= threshold else { continue }
+
+                    if candidate != nil {
+                        candidate = nil
+                        break
+                    }
+                    candidate = newID
+                }
+
+                if let candidate {
+                    timestampPairs.append((oldID: oldID, newID: candidate))
+                }
+            }
+
+            for pair in timestampPairs {
+                missingNotes.remove(pair.oldID)
+                newNotes.remove(pair.newID)
+            }
+
+            pairs.append(contentsOf: timestampPairs)
+        }
+
         return pairs
+    }
+
+    private static func applyEventsSync(
+        _ events: [LibraryFilesystemEvent],
+        to index: LibraryIndex,
+        metadataProvider: @escaping NoteMetadataProvider
+    ) -> Result {
+        var next = index
+        var changed = false
+
+        for event in events {
+            if apply(event, to: &next, metadataProvider: metadataProvider) {
+                changed = true
+            }
+        }
+
+        if changed {
+            next.lastUpdated = Date()
+        }
+
+        return Result(index: next, changed: changed)
     }
 }
