@@ -261,6 +261,25 @@ final class LibraryManager: ObservableObject {
 
     // MARK: - Filesystem reconciliation
 
+    func reconcileSavedNoteImmediately(
+        noteID: String,
+        libraryURL: URL
+    ) async {
+        guard activeLibraryURL == libraryURL else { return }
+        guard let index = libraryIndex else { return }
+
+        let result = await LibraryIndexReconciler.applyEvents(
+            [.modified(noteID: noteID)],
+            to: index,
+            libraryURL: libraryURL
+        )
+
+        guard activeLibraryURL == libraryURL else { return }
+        guard result.changed else { return }
+        libraryIndex = result.index
+        persistLibraryIndex(libraryURL: libraryURL)
+    }
+
     func reconcile(_ events: [LibraryFilesystemEvent]) async {
         guard
             let libraryURL = activeLibraryURL,
@@ -1294,6 +1313,7 @@ final class LibraryManager: ObservableObject {
 
             guard self.activeLibraryURL == libraryURL else { return }
             guard let index = self.libraryIndex else { return }
+            let baselineLastUpdated = index.lastUpdated
 
             let result = await LibraryIndexReconciler.reconcileAgainstFilesystem(
                 libraryURL: libraryURL,
@@ -1301,6 +1321,7 @@ final class LibraryManager: ObservableObject {
             )
 
             guard self.activeLibraryURL == libraryURL else { return }
+            guard self.libraryIndex?.lastUpdated == baselineLastUpdated else { return }
             guard result.changed else { return }
             self.libraryIndex = result.index
             self.persistLibraryIndex(libraryURL: libraryURL)

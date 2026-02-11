@@ -47,6 +47,7 @@ enum LibraryIndexBuilder {
 
         var collections: [String: CollectionIndex] = [:]
         var notes: [String: NoteIndex] = [:]
+        var tagFrequencies: [String: Int] = [:]
 
         let collectionURLs = (try? FileManager.default.contentsOfDirectory(
             at: collectionsURL,
@@ -87,13 +88,21 @@ enum LibraryIndexBuilder {
                 let noteID = "\(collectionID)/\(filename)"
                 let title = noteURL.deletingPathExtension().lastPathComponent
                 let modified = noteValues?.contentModificationDate ?? Date()
+                let markdown = (try? String(contentsOf: noteURL, encoding: .utf8)) ?? ""
+                let parsedTags = TagParser.parseTags(from: markdown)
+                let tags = parsedTags.sorted()
+
+                for tag in parsedTags {
+                    tagFrequencies[tag, default: 0] += 1
+                }
 
                 notes[noteID] = NoteIndex(
                     id: noteID,
                     path: noteID,
                     title: title,
                     modified: modified,
-                    pinned: false
+                    pinned: false,
+                    tags: tags
                 )
 
                 collections[collectionID]?.noteIDs.append(noteID)
@@ -110,7 +119,8 @@ enum LibraryIndexBuilder {
             libraryID: existingLibraryID ?? UUID().uuidString,
             lastUpdated: Date(),
             collections: collections,
-            notes: notes
+            notes: notes,
+            tagFrequencies: tagFrequencies
         )
     }
 }

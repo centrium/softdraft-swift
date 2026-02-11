@@ -156,6 +156,11 @@ struct PersistentEditorHost: View {
                 content: content
             )
 
+            await libraryManager.reconcileSavedNoteImmediately(
+                noteID: noteID,
+                libraryURL: libraryURL
+            )
+
             // 2️⃣ Attempt rename (your existing helper)
             if let newID = try RenameNote(
                 libraryURL: libraryURL,

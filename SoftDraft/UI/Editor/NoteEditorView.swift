@@ -117,6 +117,11 @@ struct NoteEditorView: View {
                 content: content
             )
 
+            await libraryManager.reconcileSavedNoteImmediately(
+                noteID: originalNoteID,
+                libraryURL: libraryURL
+            )
+
             // 2️⃣ Decide + perform rename if needed
             if let newNoteID = try RenameNote(
                 libraryURL: libraryURL,

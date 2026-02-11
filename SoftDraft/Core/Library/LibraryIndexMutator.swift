@@ -62,6 +62,12 @@ enum LibraryIndexMutator {
         collectionID: String
     ) -> LibraryIndex {
         var next = index
+        if let existing = next.notes[noteID] {
+            next.applyTagDelta(
+                oldTags: Set(existing.tags),
+                newTags: []
+            )
+        }
         next.notes.removeValue(forKey: noteID)
         next.collections[collectionID]?.noteIDs.removeAll { $0 == noteID }
         next.lastUpdated = Date()
@@ -72,7 +78,8 @@ enum LibraryIndexMutator {
         index: LibraryIndex,
         oldID: String,
         newID: String,
-        filesystemData: FilesystemNoteData? = nil
+        filesystemData: FilesystemNoteData? = nil,
+        libraryURL: URL? = nil
     ) -> LibraryIndex {
         var next = index
 
@@ -94,7 +101,8 @@ enum LibraryIndexMutator {
         next = updateNoteFromFilesystem(
             index: next,
             noteID: newID,
-            filesystemData: data
+            filesystemData: data,
+            libraryURL: libraryURL
         )
 
         if next.collections[newCollection] == nil {
@@ -158,7 +166,8 @@ enum LibraryIndexMutator {
                     path: newNoteID,
                     title: oldNote.title,
                     modified: Date(),
-                    pinned: oldNote.pinned
+                    pinned: oldNote.pinned,
+                    tags: oldNote.tags
                 )
                 next.notes[newNoteID] = updatedNote
             }
@@ -187,6 +196,12 @@ enum LibraryIndexMutator {
         next.collections.removeValue(forKey: collectionID)
 
         for noteID in noteIDs {
+            if let existing = next.notes[noteID] {
+                next.applyTagDelta(
+                    oldTags: Set(existing.tags),
+                    newTags: []
+                )
+            }
             next.notes.removeValue(forKey: noteID)
         }
 
@@ -197,11 +212,28 @@ enum LibraryIndexMutator {
     static func updateNoteFromFilesystem(
         index: LibraryIndex,
         noteID: String,
-        filesystemData: FilesystemNoteData
+        filesystemData: FilesystemNoteData,
+        libraryURL: URL? = nil
     ) -> LibraryIndex {
         var next = index
 
         let existing = next.notes[noteID] ?? filesystemData.baseNote
+        let oldTags = Set(existing?.tags ?? [])
+        var newTags = oldTags
+
+        let shouldParseTags = existing == nil || next.notes[noteID] != nil
+        if shouldParseTags, let libraryURL {
+            let noteURL = libraryURL
+                .appendingPathComponent(CollectionStore.collectionsDir)
+                .appendingPathComponent(noteID)
+
+            if let markdown = try? String(contentsOf: noteURL, encoding: .utf8) {
+                newTags = TagParser.parseTags(from: markdown)
+            }
+        }
+
+        next.applyTagDelta(oldTags: oldTags, newTags: newTags)
+        let sortedTags = Array(newTags).sorted()
 
         if let existing {
             let updated = NoteIndex(
@@ -209,7 +241,8 @@ enum LibraryIndexMutator {
                 path: noteID,
                 title: filesystemData.title ?? existing.title,
                 modified: filesystemData.modified ?? existing.modified,
-                pinned: existing.pinned
+                pinned: existing.pinned,
+                tags: sortedTags
             )
             next.notes[noteID] = updated
             return next
@@ -223,7 +256,8 @@ enum LibraryIndexMutator {
             path: noteID,
             title: title,
             modified: modified,
-            pinned: false
+            pinned: false,
+            tags: sortedTags
         )
 
         return next
@@ -241,7 +275,8 @@ enum LibraryIndexMutator {
             path: existing.path,
             title: existing.title,
             modified: existing.modified,
-            pinned: !existing.pinned
+            pinned: !existing.pinned,
+            tags: existing.tags
         )
 
         next.lastUpdated = Date()
@@ -262,7 +297,8 @@ enum LibraryIndexMutator {
             path: existing.path,
             title: existing.title,
             modified: existing.modified,
-            pinned: pinned
+            pinned: pinned,
+            tags: existing.tags
         )
 
         next.lastUpdated = Date()

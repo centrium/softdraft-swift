@@ -32,7 +32,12 @@ enum LibraryIndexReconciler {
         let provider: NoteMetadataProvider = { noteID in
             noteMetadata(noteID: noteID, libraryURL: libraryURL)
         }
-        return await applyEvents(events, to: index, metadataProvider: provider)
+        return await applyEvents(
+            events,
+            to: index,
+            metadataProvider: provider,
+            libraryURL: libraryURL
+        )
     }
 
     static func reconcileAgainstFilesystem(
@@ -101,7 +106,8 @@ enum LibraryIndexReconciler {
         return applyEventsSync(
             events,
             to: index,
-            metadataProvider: provider
+            metadataProvider: provider,
+            libraryURL: nil
         )
     }
 
@@ -111,7 +117,28 @@ enum LibraryIndexReconciler {
         metadataProvider: @escaping NoteMetadataProvider
     ) async -> Result {
         await Task.detached(priority: .utility) {
-            applyEventsSync(events, to: index, metadataProvider: metadataProvider)
+            applyEventsSync(
+                events,
+                to: index,
+                metadataProvider: metadataProvider,
+                libraryURL: nil
+            )
+        }.value
+    }
+
+    private static func applyEvents(
+        _ events: [LibraryFilesystemEvent],
+        to index: LibraryIndex,
+        metadataProvider: @escaping NoteMetadataProvider,
+        libraryURL: URL?
+    ) async -> Result {
+        await Task.detached(priority: .utility) {
+            applyEventsSync(
+                events,
+                to: index,
+                metadataProvider: metadataProvider,
+                libraryURL: libraryURL
+            )
         }.value
     }
 
@@ -120,19 +147,42 @@ enum LibraryIndexReconciler {
     private static func apply(
         _ event: LibraryFilesystemEvent,
         to index: inout LibraryIndex,
-        metadataProvider: @escaping NoteMetadataProvider
+        metadataProvider: @escaping NoteMetadataProvider,
+        libraryURL: URL?
     ) -> Bool {
         switch event {
         case .added(let noteID):
-            return applyNoteAdded(noteID, to: &index, metadataProvider: metadataProvider)
+            return applyNoteAdded(
+                noteID,
+                to: &index,
+                metadataProvider: metadataProvider,
+                libraryURL: libraryURL
+            )
         case .deleted(let noteID):
             return applyNoteDeleted(noteID, to: &index)
         case let .renamed(from, to):
-            return applyNoteRenamed(from: from, to: to, index: &index, metadataProvider: metadataProvider)
+            return applyNoteRenamed(
+                from: from,
+                to: to,
+                index: &index,
+                metadataProvider: metadataProvider,
+                libraryURL: libraryURL
+            )
         case .modified(let noteID):
-            return applyNoteModified(noteID, to: &index, metadataProvider: metadataProvider)
+            return applyNoteModified(
+                noteID,
+                to: &index,
+                metadataProvider: metadataProvider,
+                libraryURL: libraryURL
+            )
         case let .collectionRenamed(from, to):
-            return applyCollectionRenamed(from: from, to: to, index: &index, metadataProvider: metadataProvider)
+            return applyCollectionRenamed(
+                from: from,
+                to: to,
+                index: &index,
+                metadataProvider: metadataProvider,
+                libraryURL: libraryURL
+            )
         case let .collectionDeleted(collectionID):
             return applyCollectionDeleted(collectionID, to: &index)
         case let .collectionAdded(collectionID):
@@ -143,7 +193,8 @@ enum LibraryIndexReconciler {
     private static func applyNoteAdded(
         _ noteID: String,
         to index: inout LibraryIndex,
-        metadataProvider: @escaping NoteMetadataProvider
+        metadataProvider: @escaping NoteMetadataProvider,
+        libraryURL: URL?
     ) -> Bool {
         guard let parsed = parseNoteID(noteID) else { return false }
         let collectionID = parsed.collectionID
@@ -168,7 +219,8 @@ enum LibraryIndexReconciler {
                 index = LibraryIndexMutator.updateNoteFromFilesystem(
                     index: index,
                     noteID: noteID,
-                    filesystemData: .init(title: title, modified: modified)
+                    filesystemData: .init(title: title, modified: modified),
+                    libraryURL: libraryURL
                 )
                 changed = true
             }
@@ -176,7 +228,8 @@ enum LibraryIndexReconciler {
             index = LibraryIndexMutator.updateNoteFromFilesystem(
                 index: index,
                 noteID: noteID,
-                filesystemData: .init(title: title, modified: modified)
+                filesystemData: .init(title: title, modified: modified),
+                libraryURL: libraryURL
             )
             changed = true
         }
@@ -220,7 +273,8 @@ enum LibraryIndexReconciler {
         from oldID: String,
         to newID: String,
         index: inout LibraryIndex,
-        metadataProvider: @escaping NoteMetadataProvider
+        metadataProvider: @escaping NoteMetadataProvider,
+        libraryURL: URL?
     ) -> Bool {
         guard oldID != newID else { return false }
 
@@ -228,7 +282,12 @@ enum LibraryIndexReconciler {
             if index.notes[newID] != nil {
                 return false
             }
-            return applyNoteAdded(newID, to: &index, metadataProvider: metadataProvider)
+            return applyNoteAdded(
+                newID,
+                to: &index,
+                metadataProvider: metadataProvider,
+                libraryURL: libraryURL
+            )
         }
 
         let metadata = metadataProvider(newID)
@@ -239,7 +298,8 @@ enum LibraryIndexReconciler {
             filesystemData: .init(
                 title: metadata?.title,
                 modified: metadata?.modified
-            )
+            ),
+            libraryURL: libraryURL
         )
 
         return true
@@ -248,10 +308,16 @@ enum LibraryIndexReconciler {
     private static func applyNoteModified(
         _ noteID: String,
         to index: inout LibraryIndex,
-        metadataProvider: @escaping NoteMetadataProvider
+        metadataProvider: @escaping NoteMetadataProvider,
+        libraryURL: URL?
     ) -> Bool {
         guard let existing = index.notes[noteID] else {
-            return applyNoteAdded(noteID, to: &index, metadataProvider: metadataProvider)
+            return applyNoteAdded(
+                noteID,
+                to: &index,
+                metadataProvider: metadataProvider,
+                libraryURL: libraryURL
+            )
         }
 
         guard let modified = metadataProvider(noteID)?.modified else {
@@ -264,7 +330,8 @@ enum LibraryIndexReconciler {
         index = LibraryIndexMutator.updateNoteFromFilesystem(
             index: index,
             noteID: noteID,
-            filesystemData: .init(modified: modified)
+            filesystemData: .init(modified: modified),
+            libraryURL: libraryURL
         )
 
         return true
@@ -309,7 +376,8 @@ enum LibraryIndexReconciler {
         from oldID: String,
         to newID: String,
         index: inout LibraryIndex,
-        metadataProvider: @escaping NoteMetadataProvider
+        metadataProvider: @escaping NoteMetadataProvider,
+        libraryURL: URL?
     ) -> Bool {
         guard oldID != newID else { return false }
 
@@ -344,11 +412,17 @@ enum LibraryIndexReconciler {
                     filesystemData: .init(
                         title: metadata?.title,
                         modified: metadata?.modified
-                    )
+                    ),
+                    libraryURL: libraryURL
                 )
                 updatedNoteIDs.append(newNoteID)
             } else {
-                _ = applyNoteAdded(newNoteID, to: &index, metadataProvider: metadataProvider)
+                _ = applyNoteAdded(
+                    newNoteID,
+                    to: &index,
+                    metadataProvider: metadataProvider,
+                    libraryURL: libraryURL
+                )
                 updatedNoteIDs.append(newNoteID)
             }
         }
@@ -545,13 +619,19 @@ enum LibraryIndexReconciler {
     private static func applyEventsSync(
         _ events: [LibraryFilesystemEvent],
         to index: LibraryIndex,
-        metadataProvider: @escaping NoteMetadataProvider
+        metadataProvider: @escaping NoteMetadataProvider,
+        libraryURL: URL?
     ) -> Result {
         var next = index
         var changed = false
 
         for event in events {
-            if apply(event, to: &next, metadataProvider: metadataProvider) {
+            if apply(
+                event,
+                to: &next,
+                metadataProvider: metadataProvider,
+                libraryURL: libraryURL
+            ) {
                 changed = true
             }
         }
