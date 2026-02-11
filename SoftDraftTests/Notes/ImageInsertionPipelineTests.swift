@@ -52,7 +52,7 @@ final class ImageInsertionPipelineTests: XCTestCase {
         var insertedMarkdown: String?
 
         let outcome = await pipeline.run(
-            source: .clipboard({ @MainActor in NSPasteboard(name: pasteboardName) }),
+            source: .clipboard({ @MainActor in pasteboard }),
             libraryURL: libraryURL
         ) { markdown in
             insertedMarkdown = markdown
