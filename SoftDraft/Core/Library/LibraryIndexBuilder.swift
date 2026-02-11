@@ -17,12 +17,20 @@ enum LibraryIndexBuilder {
 
     static func build(
         libraryURL: URL,
-        existingLibraryID: String? = nil
+        existingLibraryID: String? = nil,
+        existingIndex: LibraryIndex? = nil
     ) async -> LibraryIndex {
-        await Task.detached(priority: .utility) {
+        let existingPinnedByNoteID = existingIndex?.notes.reduce(
+            into: [String: Bool]()
+        ) { partialResult, pair in
+            partialResult[pair.key] = pair.value.pinned
+        } ?? [:]
+
+        return await Task.detached(priority: .utility) {
             buildSync(
                 libraryURL: libraryURL,
-                existingLibraryID: existingLibraryID
+                existingLibraryID: existingLibraryID,
+                existingPinnedByNoteID: existingPinnedByNoteID
             )
         }.value
     }
@@ -40,7 +48,8 @@ enum LibraryIndexBuilder {
 
     private static func buildSync(
         libraryURL: URL,
-        existingLibraryID: String?
+        existingLibraryID: String?,
+        existingPinnedByNoteID: [String: Bool]
     ) -> LibraryIndex {
         let collectionsURL = libraryURL
             .appendingPathComponent(CollectionStore.collectionsDir)
@@ -91,6 +100,7 @@ enum LibraryIndexBuilder {
                 let markdown = (try? String(contentsOf: noteURL, encoding: .utf8)) ?? ""
                 let parsedTags = TagParser.parseTags(from: markdown)
                 let tags = parsedTags.sorted()
+                let existingPinned = existingPinnedByNoteID[noteID] ?? false
 
                 for tag in parsedTags {
                     tagFrequencies[tag, default: 0] += 1
@@ -101,7 +111,7 @@ enum LibraryIndexBuilder {
                     path: noteID,
                     title: title,
                     modified: modified,
-                    pinned: false,
+                    pinned: existingPinned,
                     tags: tags
                 )
 

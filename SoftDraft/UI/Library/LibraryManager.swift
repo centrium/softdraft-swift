@@ -1383,9 +1383,11 @@ final class LibraryManager: ObservableObject {
         existingLibraryID: String? = nil
     ) async {
         let libraryID = existingLibraryID ?? libraryIndex?.libraryID
+        let existingIndex = libraryIndex
         let rebuilt = await LibraryIndexBuilder.build(
             libraryURL: libraryURL,
-            existingLibraryID: libraryID
+            existingLibraryID: libraryID,
+            existingIndex: existingIndex
         )
         guard activeLibraryURL == libraryURL else { return }
         libraryIndex = rebuilt

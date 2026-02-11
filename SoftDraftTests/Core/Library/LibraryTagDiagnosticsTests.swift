@@ -79,4 +79,47 @@ final class LibraryTagDiagnosticsTests: XCTestCase {
         XCTAssertEqual(persistedIndex.notes[noteID]?.tags, ["focus", "work"])
         XCTAssertEqual(persistedIndex.tagFrequencies, ["focus": 1, "work": 1])
     }
+
+    func testRebuildLibraryIndexPreservesPinnedForSurvivingNotesOnly() async throws {
+        let libraryURL = try TestLibrary.makeTempLibrary()
+        let collectionsURL = libraryURL.appendingPathComponent("collections")
+        let keepNoteID = "Inbox/keep.md"
+        let removeNoteID = "Inbox/remove.md"
+        let newNoteID = "Inbox/new.md"
+
+        let keepURL = collectionsURL
+            .appendingPathComponent("Inbox")
+            .appendingPathComponent("keep.md")
+        let removeURL = collectionsURL
+            .appendingPathComponent("Inbox")
+            .appendingPathComponent("remove.md")
+        let newURL = collectionsURL
+            .appendingPathComponent("Inbox")
+            .appendingPathComponent("new.md")
+
+        try "Body #work".write(to: keepURL, atomically: true, encoding: .utf8)
+        try "Body #old".write(to: removeURL, atomically: true, encoding: .utf8)
+
+        let manager = LibraryManager()
+        let selection = SelectionModel()
+        manager.bind(selection: selection)
+        await manager.setActiveLibrary(libraryURL)
+        await manager.rebuildLibraryIndex(libraryURL: libraryURL)
+
+        manager.togglePin(noteID: keepNoteID)
+        manager.togglePin(noteID: removeNoteID)
+
+        try FileManager.default.removeItem(at: removeURL)
+        try "Body #work #new".write(to: newURL, atomically: true, encoding: .utf8)
+
+        await manager.rebuildLibraryIndex(libraryURL: libraryURL)
+
+        XCTAssertEqual(manager.libraryIndex?.notes[keepNoteID]?.pinned, true)
+        XCTAssertEqual(manager.libraryIndex?.notes[newNoteID]?.pinned, false)
+        XCTAssertNil(manager.libraryIndex?.notes[removeNoteID])
+
+        XCTAssertEqual(manager.libraryIndex?.notes[keepNoteID]?.tags, ["work"])
+        XCTAssertEqual(manager.libraryIndex?.notes[newNoteID]?.tags, ["new", "work"])
+        XCTAssertEqual(manager.libraryIndex?.tagFrequencies, ["new": 1, "work": 2])
+    }
 }
