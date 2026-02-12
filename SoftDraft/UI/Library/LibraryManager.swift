@@ -28,6 +28,7 @@ final class LibraryManager: ObservableObject {
     @Published private(set) var externalChangeTokens: [String: UUID] = [:]
     @Published private(set) var visibleCollections: [String] = []
     @Published private(set) var libraryIndex: LibraryIndex?
+    @Published private(set) var visibleTag: String? = nil
     
     @Published var currentNoteText: String = ""
     
@@ -48,8 +49,27 @@ final class LibraryManager: ObservableObject {
     private var deferSearchIndexRebuild = false
     private var hasPendingSearchIndexRebuild = false
     private var searchIndexRebuildTask: Task<Void, Never>?
+    
+    struct TagItem: Identifiable {
+    let id: String
+    let count: Int
+    }
 
-    // MARK: - Startup
+    
+    var allTagsSorted: [TagItem] {
+        guard let index = libraryIndex else { return [] }
+        
+        // MARK: - Startup
+        
+        return index.tagFrequencies
+            .map { TagItem(id: $0.key, count: $0.value) }
+            .sorted {
+                if $0.count == $1.count {
+                    return $0.id < $1.id
+                }
+                return $0.count > $1.count
+            }
+    }
 
     func resolveInitialLibrarySync() {
         let config = AppConfigStore.loadSync()
@@ -664,6 +684,36 @@ final class LibraryManager: ObservableObject {
             selection?.selectCollection(next)
         } else {
             selection?.selectCollection(nil)
+        }
+    }
+    
+    // MARK: - Tags
+    
+    @MainActor
+    func selectTag(_ tag: String) {
+        guard let index = libraryIndex else { return }
+        visibleTag = tag
+        visibleCollectionID = nil
+        
+        let filtered = index.notes.values
+            .filter { $0.tags.contains(tag) }
+        
+        let summaries = filtered.map { note in
+            summaryFromIndex(
+                noteID: note.id,
+                note: note,
+                fallbackCollection: collectionID(for: note.id)
+            )
+        }
+        
+        visibleNotes = sortNotes(summaries)
+    }
+    
+    @MainActor
+    func clearTagSelection() {
+        visibleTag = nil
+        if let collection = selection?.selectedCollectionID {
+            loadNotesFromIndex(collection: collection)
         }
     }
     

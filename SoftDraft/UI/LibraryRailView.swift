@@ -42,18 +42,22 @@ struct LibraryRailView: View {
 
                 } else {
 
-                    Text("TAGS")
-                        .font(.caption)
-                        .tracking(0.8)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 18)
-                        .padding(.bottom, 10)
-                        .padding(.horizontal, 14)
-
-                    Text("Tags coming soon")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 14)
+                    ForEach(libraryManager.allTagsSorted) { item in
+                    Button {
+                    libraryManager.selectTag(item.id)
+                    } label: {
+                    HStack {
+                    Text("#\(item.id)")
+                    Spacer()
+                    Text("\(item.count)")
+                    .foregroundStyle(.secondary)
+                    }
+                    .font(.system(size: 13))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 4)
+                    }
+                    .buttonStyle(.plain)
+                    }
                 }
 
                 Spacer(minLength: 0)
@@ -72,6 +76,13 @@ struct LibraryRailView: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 14)
                 .padding(.bottom, 8)
+            
+            if let tag = libraryManager.visibleTag {
+                Text("#(tag)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            
 
             NotesListView(
                 libraryURL: libraryURL,

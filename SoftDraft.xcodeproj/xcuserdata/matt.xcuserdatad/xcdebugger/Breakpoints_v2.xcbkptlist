@@ -62,8 +62,8 @@
             filePath = "SoftDraft/UI/Library/LibraryManager.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "914"
-            endingLineNumber = "914"
+            startingLineNumber = "964"
+            endingLineNumber = "964"
             landmarkName = "nextAvailableCollectionName(in:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -78,8 +78,8 @@
             filePath = "SoftDraft/UI/Library/LibraryManager.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "915"
-            endingLineNumber = "915"
+            startingLineNumber = "965"
+            endingLineNumber = "965"
             landmarkName = "nextAvailableCollectionName(in:)"
             landmarkType = "7">
          </BreakpointContent>
