@@ -110,7 +110,7 @@ struct NotesListView: View {
                         } else if searchResults.isEmpty {
                             SearchEmptyState(
                                 query: searchQuery,
-                                collection: collection
+                                contextLabel: libraryManager.visibleTag.map { "#\($0)" } ?? collection
                             )
                             .listRowSeparator(.hidden)
                             .listRowInsets(
@@ -203,7 +203,9 @@ struct NotesListView: View {
                 }
                 .focused($focusedField, equals: .results)
                 .listStyle(.sidebar)
-                .navigationTitle(collection)
+                .navigationTitle(
+                    libraryManager.visibleTag.map { "#\($0)" } ?? collection
+                )
                 .onExitCommand {
                     if isSearchActive {
                         clearSearch()
@@ -221,23 +223,11 @@ struct NotesListView: View {
 
                     return .ignored
                 }
-                .task {
-                    libraryManager.loadNotesFromIndex(
-                        collection: collection
-                    )
-                }
-                .onChange(of: collection) { _, newCollection in
-                    clearSearch()
-                    selection.selectCollection(newCollection)
-                    Task {
-                        await libraryManager.loadNotes(
-                            libraryURL: libraryURL,
-                            collection: newCollection
-                        )
-                    }
-                    
-                }
                 .onReceive(searchIndex.$entries) { _ in
+                    guard isSearchActive else { return }
+                    scheduleSearch(for: searchQuery)
+                }
+                .onReceive(libraryManager.$visibleNotes) { _ in
                     guard isSearchActive else { return }
                     scheduleSearch(for: searchQuery)
                 }
@@ -317,12 +307,16 @@ struct NotesListView: View {
         }
 
         isSearching = true
+        let scopedNoteIDs = Set(libraryManager.visibleNotes.map(\.id))
 
         searchTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 120_000_000)
             guard !Task.isCancelled else { return }
 
-            let results = searchIndex.search(trimmed)
+            let results = searchIndex.search(
+                trimmed,
+                scopedNoteIDs: scopedNoteIDs
+            )
             isSearching = false
             updateSearchResults(results)
         }
@@ -492,15 +486,18 @@ private struct SearchHint: Equatable {
 
     init?(matchHint: String?) {
         guard let hint = matchHint else { return nil }
-        if hint == "Title" {
-            label = "Title match"
+        if hint == "Tag" {
+            label = "Tag match"
             rank = 0
+        } else if hint == "Title" {
+            label = "Title match"
+            rank = 1
         } else if hint == "Body" {
             label = "Body match"
-            rank = 2
+            rank = 3
         } else {
             label = "Heading match"
-            rank = 1
+            rank = 2
         }
     }
 }
@@ -569,14 +566,14 @@ private struct SearchStatusRow: View {
 
 private struct SearchEmptyState: View {
     let query: String
-    let collection: String
+    let contextLabel: String
 
     var body: some View {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         VStack(alignment: .leading, spacing: 6) {
             Text("No matches for \"\(trimmed)\"")
                 .font(.body.weight(.medium))
-            Text("Try a different word in \(collection).")
+            Text("Try a different word in \(contextLabel).")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

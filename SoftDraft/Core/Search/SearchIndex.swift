@@ -36,16 +36,29 @@ final class SearchIndex: ObservableObject {
         entries.removeAll { $0.id == noteID }
     }
 
-    func search(_ rawQuery: String, limit: Int = 50) -> [SearchResult] {
-        let query = SearchNormaliser.normalise(rawQuery)
+    func search(
+        _ rawQuery: String,
+        limit: Int = 50,
+        scopedNoteIDs: Set<String>? = nil
+    ) -> [SearchResult] {
+        let query = normalisedQuery(rawQuery)
         guard !query.isEmpty else { return [] }
 
         var results: [SearchResult] = []
         results.reserveCapacity(32)
 
         for entry in entries {
+            if let scopedNoteIDs, !scopedNoteIDs.contains(entry.id) {
+                continue
+            }
+
             var score = 0
             var hint: String? = nil
+
+            if entry.tags.contains(where: { $0.contains(query) }) {
+                score += 120
+                hint = hint ?? "Tag"
+            }
 
             if entry.title.contains(query) {
                 score += 100
@@ -77,5 +90,13 @@ final class SearchIndex: ObservableObject {
         }
 
         return results
+    }
+
+    private func normalisedQuery(_ rawQuery: String) -> String {
+        var query = SearchNormaliser.normalise(rawQuery)
+        while query.first == "#" {
+            query.removeFirst()
+        }
+        return query.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

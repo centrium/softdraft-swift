@@ -42,21 +42,36 @@ struct LibraryRailView: View {
 
                 } else {
 
-                    ForEach(libraryManager.allTagsSorted) { item in
-                    Button {
-                    libraryManager.selectTag(item.id)
-                    } label: {
-                    HStack {
-                    Text("#\(item.id)")
-                    Spacer()
-                    Text("\(item.count)")
-                    .foregroundStyle(.secondary)
-                    }
-                    .font(.system(size: 13))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 4)
-                    }
-                    .buttonStyle(.plain)
+                    Text("TAGS")
+                        .font(.caption)
+                        .tracking(0.8)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 18)
+                        .padding(.bottom, 10)
+                        .padding(.horizontal, 14)
+
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 2) {
+
+                            ForEach(libraryManager.allTagsSorted) { item in
+                                Button {
+                                    libraryManager.selectTag(item.id)
+                                } label: {
+                                    HStack {
+                                        Text("#\(item.id)")
+                                        Spacer()
+                                        Text("\(item.count)")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .font(.system(size: 13))
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 4)
+                                }
+                                .buttonStyle(.plain)
+                            }
+
+                        }
+                        .padding(.horizontal, 6)
                     }
                 }
 

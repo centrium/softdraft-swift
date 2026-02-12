@@ -13,6 +13,7 @@ struct SearchIndexEntry: Identifiable, Equatable {
     let title: String            // normalised
     let headings: [String]       // normalised
     let bodyText: String         // normalised
+    let tags: [String]           // normalised
 }
 
 struct SearchResult: Identifiable, Equatable {

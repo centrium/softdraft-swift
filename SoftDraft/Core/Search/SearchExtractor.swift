@@ -13,7 +13,8 @@ enum SearchExtractor {
     nonisolated static func extract(
         noteID: String,
         title: String,
-        markdown: String
+        markdown: String,
+        tags: [String]
     ) -> SearchIndexEntry {
 
         var headings: [String] = []
@@ -48,7 +49,8 @@ enum SearchExtractor {
             id: noteID,
             title: SearchNormaliser.normalise(title),
             headings: headings.map { SearchNormaliser.normalise($0) },
-            bodyText: SearchNormaliser.normalise(bodyParts.joined(separator: " "))
+            bodyText: SearchNormaliser.normalise(bodyParts.joined(separator: " ")),
+            tags: tags.map { SearchNormaliser.normalise($0) }
         )
     }
 }

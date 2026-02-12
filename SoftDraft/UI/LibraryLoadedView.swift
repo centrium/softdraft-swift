@@ -38,8 +38,12 @@ struct LibraryLoadedView: View {
         // Toggle Collections / Tags
         ToolbarItem(placement: .primaryAction) {
             Button {
-                uiState.sidebarMode =
+                let nextMode: SidebarMode =
                     uiState.sidebarMode == .collections ? .tags : .collections
+                uiState.sidebarMode = nextMode
+                if nextMode == .collections {
+                    libraryManager.enterCollectionMode()
+                }
             } label: {
                 Image(systemName:
                     uiState.sidebarMode == .collections

@@ -211,7 +211,7 @@ final class LibraryManager: ObservableObject {
         libraryURL: URL,
         collection: String
     ) async {
-        visibleCollectionID = collection
+        transitionToCollectionMode(collection: collection)
 
         do {
             let fetched = try await Task {
@@ -227,20 +227,23 @@ final class LibraryManager: ObservableObject {
                 return summaryWithPinned(summary, pinned: pinned)
             }
             visibleNotes = sortNotes(enriched)
+            validateSelectionInVisibleNotes()
             boundSearchIndex.map { scheduleSearchIndexRebuild($0) }
         } catch {
             guard visibleCollectionID == collection else { return }
             visibleNotes = []
+            validateSelectionInVisibleNotes()
         }
     }
 
     func loadNotesFromIndex(
         collection: String
     ) {
-        visibleCollectionID = collection
+        transitionToCollectionMode(collection: collection)
 
         guard let index = libraryIndex else {
             visibleNotes = []
+            validateSelectionInVisibleNotes()
             return
         }
 
@@ -255,6 +258,7 @@ final class LibraryManager: ObservableObject {
         }
 
         visibleNotes = sortNotes(summaries)
+        validateSelectionInVisibleNotes()
         boundSearchIndex.map { scheduleSearchIndexRebuild($0) }
     }
 
@@ -711,13 +715,29 @@ final class LibraryManager: ObservableObject {
     
     @MainActor
     func clearTagSelection() {
-        visibleTag = nil
-        if let collection = selection?.selectedCollectionID {
-            loadNotesFromIndex(collection: collection)
-        }
+        enterCollectionMode()
+    }
+
+    @MainActor
+    func enterCollectionMode() {
+        let targetCollection = selection?.selectedCollectionID ?? "Inbox"
+        loadNotesFromIndex(collection: targetCollection)
     }
     
     // MARK: - Helpers
+
+    private func transitionToCollectionMode(collection: String) {
+        visibleTag = nil
+        visibleCollectionID = collection
+    }
+
+    private func validateSelectionInVisibleNotes() {
+        guard let selectedNoteID = selection?.selectedNoteID else { return }
+        guard visibleNotes.contains(where: { $0.id == selectedNoteID }) else {
+            selection?.selectNote(nil)
+            return
+        }
+    }
     
     private func transitionToLoadedLibrary(_ url: URL) {
         stopWatcher()
@@ -1260,26 +1280,36 @@ final class LibraryManager: ObservableObject {
     }
 
     func rebuildSearchIndex(_ searchIndex: SearchIndex) {
-        guard let libraryURL = activeLibraryURL else { return }
+        guard
+            let libraryURL = activeLibraryURL,
+            let libraryIndex = libraryIndex
+        else { return }
 
-        let notes = visibleNotes
         let collectionsDir = collectionsDir
+        let allNotes = libraryIndex.notes
 
         searchIndexRebuildTask?.cancel()
-        searchIndexRebuildTask = Task.detached(priority: .utility) {
-            var entries: [SearchIndexEntry] = []
-            entries.reserveCapacity(notes.count)
 
-            for note in notes {
+        searchIndexRebuildTask = Task.detached(priority: .utility) {
+
+            var entries: [SearchIndexEntry] = []
+            entries.reserveCapacity(allNotes.count)
+
+            for (noteID, noteIndex) in allNotes {
+
                 guard !Task.isCancelled else { return }
 
-                let fileName = note.name.hasSuffix(".md")
-                    ? note.name
-                    : note.name + ".md"
+                // noteID format: "Collection/File.md"
+                let parts = noteID.split(separator: "/", maxSplits: 1)
+                guard parts.count == 2 else { continue }
+
+                let collectionID = String(parts[0])
+                let filename = String(parts[1])
+
                 let noteURL = libraryURL
                     .appendingPathComponent(collectionsDir)
-                    .appendingPathComponent(note.relativeDir)
-                    .appendingPathComponent(fileName)
+                    .appendingPathComponent(collectionID)
+                    .appendingPathComponent(filename)
 
                 guard let markdown = try? String(contentsOf: noteURL, encoding: .utf8) else {
                     continue
@@ -1287,10 +1317,11 @@ final class LibraryManager: ObservableObject {
 
                 entries.append(
                     SearchExtractor.extract(
-                    noteID: note.id,
-                    title: note.title,
-                    markdown: markdown
-                )
+                        noteID: noteID,
+                        title: noteIndex.title,
+                        markdown: markdown,
+                        tags: noteIndex.tags
+                    )
                 )
             }
 
@@ -1299,7 +1330,7 @@ final class LibraryManager: ObservableObject {
 
             await MainActor.run {
                 guard !Task.isCancelled else { return }
-                print("🔍 SEARCH INDEXED:", builtEntries.count, "notes")
+                print("🔍 SEARCH INDEXED (GLOBAL):", builtEntries.count, "notes")
                 searchIndex.replaceAll(builtEntries)
             }
         }
