@@ -7,31 +7,6 @@
 
 import SwiftUI
 
-private enum NotesSection: String, CaseIterable {
-    case today = "Today"
-    case yesterday = "Yesterday"
-    case thisWeek = "This Week"
-    case older = "Older"
-}
-
-private func section(for date: Date) -> NotesSection {
-    let calendar = Calendar.current
-
-    if calendar.isDateInToday(date) {
-        return .today
-    }
-
-    if calendar.isDateInYesterday(date) {
-        return .yesterday
-    }
-
-    if calendar.isDate(date, equalTo: Date(), toGranularity: .weekOfYear) {
-        return .thisWeek
-    }
-
-    return .older
-}
-
 struct NotesListView: View {
 
     let libraryURL: URL
@@ -61,12 +36,17 @@ struct NotesListView: View {
     private var collections: [String] {
         libraryManager.allCollections()
     }
-    
-    private var groupedNotes: [NotesSection: [NoteSummary]] {
-        Dictionary(
-            grouping: libraryManager.visibleNotes,
-            by: { section(for: $0.modifiedAt) }
-        )
+
+    private var sortedVisibleNotes: [NoteSummary] {
+        libraryManager.visibleNotes.sorted { lhs, rhs in
+            if lhs.pinned != rhs.pinned {
+                return lhs.pinned
+            }
+            if lhs.modifiedAt != rhs.modifiedAt {
+                return lhs.modifiedAt > rhs.modifiedAt
+            }
+            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+        }
     }
 
     private var isSearchActive: Bool {
@@ -136,26 +116,17 @@ struct NotesListView: View {
                                 } label: {
                                     SearchResultRow(
                                         note: result.note,
-                                        hint: result.hint,
-                                        isSelected: searchSelection == result.id
+                                        isSelected: searchSelection == result.id,
+                                        isHovered: result.isHovered
                                     )
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .frame(minHeight: 48)
+                                    .frame(minHeight: 36)
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
-                                .listRowBackground(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(
-                                            searchSelection == result.id
-                                            ? Color.primary.opacity(0.12)
-                                            : result.isHovered
-                                            ? Color.primary.opacity(0.06)
-                                            : Color.clear
-                                        )
-                                )
+                                .listRowBackground(Color.clear)
                                 .listRowInsets(
-                                    EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
+                                    EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4)
                                 )
                                 .listRowSeparator(.hidden)
                                 .tag(result.id)
@@ -177,45 +148,29 @@ struct NotesListView: View {
                             Button {
                                 commandRegistry.run("note.create")
                             } label: {
-                                Label("New note", systemImage: "plus")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .opacity(0.8)
+                                Text("New note")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(.secondary)
                             }
                             .buttonStyle(.plain)
                             Spacer()
                         }
-                        .padding(.vertical, 12)
+                        .padding(.vertical, 8)
                         .listRowSeparator(.hidden)
                     } else {
-                        ForEach(NotesSection.allCases, id: \.self) { section in
-                            if let notes = groupedNotes[section], !notes.isEmpty {
-
-                                Section {
-                                    ForEach(notes, id: \.id) { note in
-                                        NoteRow(note: note)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                            .frame(minHeight: 44) // keeps selection stable
-                                            .listRowBackground(
-                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                                    .fill(
-                                                        selection.selectedNoteID == note.id
-                                                        ? Color.primary.opacity(0.08)
-                                                        : Color.clear
-                                                    )
-                                            )
-                                            .listRowInsets(
-                                                EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
-                                            )
-                                            .tag(note.id)
-                                    }
-                                } header: {
-                                    Text(section.rawValue)
-                                        .font(.caption)
-                                        .tracking(0.6)
-                                        .foregroundStyle(.secondary)
-                                        .padding(.leading, 2)
-                                }
-                            }
+                        ForEach(sortedVisibleNotes, id: \.id) { note in
+                            NoteRow(
+                                note: note,
+                                isSelected: selection.selectedNoteID == note.id,
+                                showsPinnedIndicator: note.pinned
+                            )
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(minHeight: 36)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(
+                                EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4)
+                            )
+                            .tag(note.id)
                         }
                     }
                 }
@@ -404,7 +359,7 @@ struct NotesListView: View {
 
     private var listTopSpacing: some View {
         Color.clear
-            .frame(height: 6)
+            .frame(height: 0)
             .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
             .listRowSeparator(.hidden)
             .allowsHitTesting(false)
@@ -412,10 +367,10 @@ struct NotesListView: View {
     }
 
     private var searchField: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(.secondary.opacity(0.65))
 
             TextField("Search notes", text: $searchQuery)
                 .textFieldStyle(.plain)
@@ -437,30 +392,18 @@ struct NotesListView: View {
                     clearSearch()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary.opacity(0.55))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear search")
             }
         }
-        .padding(8)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.primary.opacity(0.06))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(
-                    focusedField == .search
-                    ? Color.accentColor.opacity(0.4)
-                    : Color.primary.opacity(0.08),
-                    lineWidth: 1
-                )
-        )
-        .padding(.horizontal, 8)
-        .padding(.top, 6)
-        .padding(.bottom, 4)
+        .font(.system(size: 13, weight: .regular))
+        .padding(.vertical, 5)
+        .padding(.horizontal, 10)
+        .padding(.top, 4)
+        .padding(.bottom, 2)
         .onExitCommand {
             if isSearchActive {
                 clearSearch()
@@ -497,22 +440,17 @@ struct NotesListView: View {
 }
 
 private struct SearchHint: Equatable {
-    let label: String
     let rank: Int
 
     init?(matchHint: String?) {
         guard let hint = matchHint else { return nil }
         if hint == "Tag" {
-            label = "Tag match"
             rank = 0
         } else if hint == "Title" {
-            label = "Title match"
             rank = 1
         } else if hint == "Body" {
-            label = "Body match"
             rank = 3
         } else {
-            label = "Heading match"
             rank = 2
         }
     }
@@ -528,39 +466,28 @@ private struct SearchDisplayResult: Identifiable {
 
 private struct SearchResultRow: View {
     let note: NoteSummary
-    let hint: SearchHint?
     let isSelected: Bool
+    let isHovered: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 2) {
             Text(note.title)
-                .font(.body)
+                .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
                 .lineLimit(1)
+                .foregroundStyle(
+                    isHovered
+                    ? Color.primary.opacity(0.92)
+                    : Color.primary.opacity(0.82)
+                )
 
             HStack(spacing: 8) {
                 Text(note.modifiedAt.formatted(date: .abbreviated, time: .omitted))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if let hint {
-                    Text(hint.label)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule()
-                                .fill(
-                                    isSelected
-                                    ? Color.primary.opacity(0.18)
-                                    : Color.primary.opacity(0.08)
-                                )
-                        )
-                }
-
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(.secondary.opacity(0.85))
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 3)
+        .padding(.horizontal, 2)
     }
 }
 
@@ -584,13 +511,13 @@ private struct TagSelectionPlaceholder: View {
     var body: some View {
         VStack(spacing: 0) {
             Spacer(minLength: 0)
-            VStack(spacing: 7) {
+            VStack(spacing: 4) {
                 Text("Choose a tag")
-                    .font(.title3.weight(.medium))
-                    .foregroundStyle(.primary.opacity(0.8))
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(.primary.opacity(0.78))
                 Text("Select a tag from the sidebar to view its notes.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundStyle(.secondary.opacity(0.82))
                     .multilineTextAlignment(.center)
             }
             .padding(.horizontal, 20)
@@ -616,36 +543,5 @@ private struct SearchEmptyState: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 6)
-    }
-}
-
-struct NewNoteRow: View {
-    let action: () -> Void
-    @State private var isHovering = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: "plus")
-                    .font(.system(size: 13, weight: .medium))
-
-                Text("New note")
-                    .font(.system(size: 14))
-                    .opacity(0.75)
-
-                Spacer()
-            }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 6)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(isHovering ? Color.primary.opacity(0.06) : .clear)
-        )
-        .onHover { hovering in
-            isHovering = hovering
-        }
     }
 }

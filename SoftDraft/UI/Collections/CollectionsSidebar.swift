@@ -159,29 +159,21 @@ struct CollectionsSidebar: View {
 
         Section {
             if libraryManager.visibleCollections.contains("Inbox") {
+                let isSelected = selection.selectedCollectionID == "Inbox"
                 SidebarRow {
-                    Image(systemName: "tray")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.secondary.opacity(0.7))
                     Text("Inbox")
-                        .font(.system(size: 14))
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.secondary.opacity(0.7))
-                        .help("Inbox is a built-in collection and can’t be renamed or deleted.")
+                        .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                        .foregroundStyle(Color.primary.opacity(0.84))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .id("Inbox")
                 .listRowBackground(selectionBackground(for: "Inbox"))
                 .listRowInsets(
-                    EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
+                    EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4)
                 )
                 .if(selectionEnabled) { view in
                     view.tag("Inbox")
                 }
-
-                Divider()
-                    .listRowSeparator(.hidden)
             }
 
             ForEach(visibleCollections, id: \.self) { name in
@@ -190,7 +182,7 @@ struct CollectionsSidebar: View {
                     .id(name)
                     .listRowBackground(selectionBackground(for: name))
                     .listRowInsets(
-                        EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
+                        EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4)
                     )
                     .if(selectionEnabled) { view in
                         view.tag(name)
@@ -205,19 +197,15 @@ struct CollectionsSidebar: View {
                     }
                 } label: {
                     SidebarRow {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.secondary.opacity(0.7))
-
                         Text(showAllCollections ? "Show less" : "Show more")
-                            .font(.system(size: 14))
+                            .font(.system(size: 12, weight: .regular))
                             .foregroundStyle(.secondary)
                     }
                 }
                 .buttonStyle(.plain)
                 .listRowSeparator(.hidden)
                 .listRowInsets(
-                    EdgeInsets(top: 6, leading: 6, bottom: 10, trailing: 6)
+                    EdgeInsets(top: 4, leading: 4, bottom: 6, trailing: 4)
                 )
             }
 
@@ -232,20 +220,11 @@ struct CollectionsSidebar: View {
             renameField
                 .onAppear { renameFieldFocused = true }
         } else {
+            let isSelected = selection.selectedCollectionID == name
             SidebarRow {
-                Image(systemName: "folder")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.secondary.opacity(0.7))
-
                 Text(name)
-                    .font(.system(size: 14))
-
-                if libraryManager.mandatoryCollections.contains(name) {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.secondary.opacity(0.7))
-                        .help("Inbox is a built-in collection and can’t be renamed or deleted.")
-                }
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(Color.primary.opacity(0.84))
             }
         }
     }
@@ -253,21 +232,7 @@ struct CollectionsSidebar: View {
     // MARK: - Selection Background
 
     private func selectionBackground(for name: String) -> some View {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(
-                selection.selectedCollectionID == name
-                ? Color.primary.opacity(0.08)
-                : Color.clear
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(
-                        selection.selectedCollectionID == name
-                        ? Color.primary.opacity(0.12)
-                        : .clear,
-                        lineWidth: 0.5
-                    )
-            )
+        Color.clear
     }
 
     // MARK: - Rename Field
@@ -283,9 +248,9 @@ struct CollectionsSidebar: View {
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(
                         renameFieldFocused
-                        ? Color.accentColor
-                        : Color.secondary.opacity(0.35),
-                        lineWidth: 1
+                        ? Color.primary.opacity(0.2)
+                        : Color.primary.opacity(0.12),
+                        lineWidth: 0.7
                     )
             )
             .contentShape(Rectangle())
@@ -309,8 +274,8 @@ struct SidebarRow<Content: View>: View {
             content
             Spacer()
         }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .padding(.horizontal, 4)
         .contentShape(Rectangle())
     }
 }
