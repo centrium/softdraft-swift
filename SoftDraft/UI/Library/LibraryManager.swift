@@ -91,6 +91,13 @@ final class LibraryManager: ObservableObject {
         boundSearchIndex.map { scheduleSearchIndexRebuild($0) }
         self.selection = selection
 
+        selection.$selectedCollectionID
+            .removeDuplicates()
+            .sink { [weak self] collectionID in
+                self?.selectCollection(collectionID)
+            }
+            .store(in: &cancellables)
+
         // Persist last active collection when selection changes
         selection.$selectedCollectionID
             .compactMap { $0 }
@@ -211,75 +218,25 @@ final class LibraryManager: ObservableObject {
         libraryURL: URL,
         collection: String
     ) async {
-        transitionToCollectionMode(collection: collection)
-
-        do {
-            let fetched = try await Task {
-                try NoteStore.list(
-                    libraryURL: libraryURL,
-                    collection: collection
-                )
-            }.value
-
-            guard visibleCollectionID == collection else { return }
-            let enriched = fetched.map { summary in
-                let pinned = pinnedState(for: summary.id)
-                return summaryWithPinned(summary, pinned: pinned)
-            }
-            visibleNotes = sortNotes(enriched)
-            validateSelectionInVisibleNotes()
-            boundSearchIndex.map { scheduleSearchIndexRebuild($0) }
-        } catch {
-            guard visibleCollectionID == collection else { return }
-            visibleNotes = []
-            validateSelectionInVisibleNotes()
-        }
+        guard activeLibraryURL == libraryURL else { return }
+        selectCollection(collection)
     }
 
     func loadNotesFromIndex(
         collection: String
     ) {
-        transitionToCollectionMode(collection: collection)
-
-        guard let index = libraryIndex else {
-            visibleNotes = []
-            validateSelectionInVisibleNotes()
-            return
-        }
-
-        let noteIDs = index.collections[collection]?.noteIDs ?? []
-        let summaries = noteIDs.compactMap { noteID -> NoteSummary? in
-            guard let note = index.notes[noteID] else { return nil }
-            return summaryFromIndex(
-                noteID: noteID,
-                note: note,
-                fallbackCollection: collection
-            )
-        }
-
-        visibleNotes = sortNotes(summaries)
-        validateSelectionInVisibleNotes()
-        boundSearchIndex.map { scheduleSearchIndexRebuild($0) }
+        selectCollection(collection)
     }
 
     func reloadCurrentCollection(
         preferredSelection: String? = nil,
         enforceSelection: Bool = false
     ) {
-        guard
-            let libraryURL = activeLibraryURL,
-            let collection = visibleCollectionID
-        else { return }
+        updateVisibleNotes()
+        validateSelectionInVisibleNotes()
 
-        Task {
-            await loadNotes(
-                libraryURL: libraryURL,
-                collection: collection
-            )
-
-            if enforceSelection {
-                finalizeSelectionAfterRemoval(preferred: preferredSelection)
-            }
+        if enforceSelection {
+            finalizeSelectionAfterRemoval(preferred: preferredSelection)
         }
     }
 
@@ -302,6 +259,9 @@ final class LibraryManager: ObservableObject {
         guard result.changed else { return }
         libraryIndex = result.index
         persistLibraryIndex(libraryURL: libraryURL)
+        updateVisibleNotes()
+        validateSelectionInVisibleNotes()
+        signalExternalChange(for: noteID)
     }
 
     func reconcile(_ events: [LibraryFilesystemEvent]) async {
@@ -320,44 +280,40 @@ final class LibraryManager: ObservableObject {
             case .added(let noteID):
                 guard !shouldIgnore(noteID: noteID) else { continue }
                 reconciliationEvents.append(event)
-                handleAddition(
-                    noteID: noteID,
-                    libraryURL: libraryURL
-                )
 
             case .modified(let noteID):
                 guard !shouldIgnore(noteID: noteID) else { continue }
                 reconciliationEvents.append(event)
-                handleModification(
-                    noteID: noteID,
-                    libraryURL: libraryURL
-                )
 
             case let .renamed(from, to):
                 guard !shouldIgnore(noteID: from), !shouldIgnore(noteID: to) else { continue }
                 reconciliationEvents.append(event)
-                handleRename(
-                    from: from,
-                    to: to,
-                    libraryURL: libraryURL
-                )
+                if selection?.selectedNoteID == from {
+                    selection?.selectedNoteID = to
+                    signalExternalChange(for: to)
+                }
 
             case .deleted(let noteID):
                 guard !shouldIgnore(noteID: noteID) else { continue }
                 reconciliationEvents.append(event)
-                handleDeletion(noteID: noteID)
+                if selection?.selectedNoteID == noteID {
+                    selection?.selectedNoteID = nil
+                }
 
             case let .collectionRenamed(from, to):
                 reconciliationEvents.append(event)
-                handleCollectionRename(from: from, to: to, libraryURL: libraryURL)
+                if selection?.selectedCollectionID == from {
+                    selection?.selectCollection(to)
+                }
 
             case let .collectionDeleted(collectionID):
                 reconciliationEvents.append(event)
-                handleCollectionDeletion(collectionID, libraryURL: libraryURL)
+                if selection?.selectedCollectionID == collectionID {
+                    selection?.selectCollection(nil)
+                }
 
-            case let .collectionAdded(collectionID):
+            case .collectionAdded:
                 reconciliationEvents.append(event)
-                handleCollectionAddition(collectionID, libraryURL: libraryURL)
             }
         }
 
@@ -376,72 +332,35 @@ final class LibraryManager: ObservableObject {
         guard result.changed else { return }
         libraryIndex = result.index
         persistLibraryIndex(libraryURL: libraryURL)
+        refreshVisibleStateFromIndex(libraryURL: libraryURL)
+        validateSelectionInVisibleNotes()
     }
     
     @MainActor
     func replaceNoteID(oldID: String, newID: String) {
-        
         updateLibraryIndexAfterRenameNote(
             oldID: oldID,
             newID: newID
         )
-        
+
         if let libraryURL = activeLibraryURL {
             persistLibraryIndex(libraryURL: libraryURL)
         }
-        
-        // 1️⃣ Update selection immediately
+
         if selection?.selectedNoteID == oldID {
             selection?.selectedNoteID = newID
         }
 
-        // 2️⃣ If the note is visible, rebuild its summary properly
-        guard
-            let libraryURL = activeLibraryURL,
-            let index = visibleNotes.firstIndex(where: { $0.id == oldID })
-        else {
-            return
-        }
-
-        let pinned = pinnedState(for: newID)
-        guard let newSummary = try? NoteSummaryFactory.make(
-            libraryURL: libraryURL,
-            noteID: newID,
-            pinned: pinned
-        ) else {
-            return
-        }
-
-        visibleNotes.remove(at: index)
-        visibleNotes.append(newSummary)
-        visibleNotes = sortNotes(visibleNotes)
-
+        updateVisibleNotes()
+        validateSelectionInVisibleNotes()
         signalExternalChange(for: newID)
     }
 
     @MainActor
     func refreshNoteID(_ noteID: String) {
-        guard
-            let libraryURL = activeLibraryURL,
-            let index = visibleNotes.firstIndex(where: { $0.id == noteID })
-        else {
-            return
-        }
-
-        let pinned = pinnedState(for: noteID)
-
-        guard let summary = try? NoteSummaryFactory.make(
-            libraryURL: libraryURL,
-            noteID: noteID,
-            pinned: pinned
-        ) else {
-            return
-        }
-
-        visibleNotes.remove(at: index)
-        visibleNotes.append(summary)
-        visibleNotes = sortNotes(visibleNotes)
-
+        guard libraryIndex?.notes[noteID] != nil else { return }
+        updateVisibleNotes()
+        validateSelectionInVisibleNotes()
         signalExternalChange(for: noteID)
     }
     
@@ -517,18 +436,14 @@ final class LibraryManager: ObservableObject {
             return nil
         }
 
-        // Reload for consistency (single source of truth)
-        await loadNotes(
-            libraryURL: libraryURL,
-            collection: collectionID
-        )
-        
         updateLibraryIndexAfterCreateNote(
             noteID: result.summary.id,
             title: result.summary.title,
             collectionID: collectionID
         )
         persistLibraryIndex(libraryURL: libraryURL)
+        updateVisibleNotes()
+        validateSelectionInVisibleNotes()
 
         return result.summary.id
     }
@@ -552,16 +467,11 @@ final class LibraryManager: ObservableObject {
         } catch {
             print("Failed to delete note:", error)
         }
-
-        await loadNotes(
-            libraryURL: libraryURL,
-            collection: collectionID
-        )
-
-        guard visibleCollectionID == collectionID else { return }
         
         updateLibraryIndexAfterDeleteNote(noteID: noteID, collectionID: collectionID)
         persistLibraryIndex(libraryURL: libraryURL)
+        updateVisibleNotes()
+        validateSelectionInVisibleNotes()
 
         if selectionPlan.affectedVisibleList {
             finalizeSelectionAfterRemoval(preferred: selectionPlan.preferredNextID)
@@ -581,13 +491,8 @@ final class LibraryManager: ObservableObject {
             noteID: noteID
         )
         persistLibraryIndex(libraryURL: libraryURL)
-
-        if let index = visibleNotes.firstIndex(where: { $0.id == noteID }),
-           let pinned = libraryIndex?.notes[noteID]?.pinned {
-            let summary = summaryWithPinned(visibleNotes[index], pinned: pinned)
-            visibleNotes[index] = summary
-            visibleNotes = sortNotes(visibleNotes)
-        }
+        updateVisibleNotes()
+        validateSelectionInVisibleNotes()
     }
     
     // MARK: - Collections
@@ -692,44 +597,50 @@ final class LibraryManager: ObservableObject {
     }
     
     // MARK: - Tags
+
+    @MainActor
+    func selectCollection(_ collectionID: String?) {
+        visibleTag = nil
+        visibleCollectionID = collectionID
+        updateVisibleNotes(selectedCollectionID: collectionID)
+        validateSelectionInVisibleNotes()
+    }
     
     @MainActor
     func selectTag(_ tag: String) {
-        guard let index = libraryIndex else { return }
         visibleTag = tag
         visibleCollectionID = nil
-        
-        let filtered = index.notes.values
-            .filter { $0.tags.contains(tag) }
-        
-        let summaries = filtered.map { note in
-            summaryFromIndex(
-                noteID: note.id,
-                note: note,
-                fallbackCollection: collectionID(for: note.id)
-            )
-        }
-        
-        visibleNotes = sortNotes(summaries)
+        updateVisibleNotes()
+        validateSelectionInVisibleNotes()
     }
     
     @MainActor
     func clearTagSelection() {
-        enterCollectionMode()
+        visibleTag = nil
+        visibleCollectionID = selection?.selectedCollectionID
+        updateVisibleNotes()
+        validateSelectionInVisibleNotes()
     }
 
     @MainActor
     func enterCollectionMode() {
         let targetCollection = selection?.selectedCollectionID ?? "Inbox"
-        loadNotesFromIndex(collection: targetCollection)
+        if selection?.selectedCollectionID != targetCollection {
+            selection?.selectCollection(targetCollection)
+            return
+        }
+        selectCollection(targetCollection)
+    }
+
+    @MainActor
+    func enterTagMode() {
+        visibleTag = nil
+        visibleCollectionID = nil
+        selection?.selectNote(nil)
+        updateVisibleNotes()
     }
     
     // MARK: - Helpers
-
-    private func transitionToCollectionMode(collection: String) {
-        visibleTag = nil
-        visibleCollectionID = collection
-    }
 
     private func validateSelectionInVisibleNotes() {
         guard let selectedNoteID = selection?.selectedNoteID else { return }
@@ -737,6 +648,56 @@ final class LibraryManager: ObservableObject {
             selection?.selectNote(nil)
             return
         }
+    }
+
+    private func updateVisibleNotes(selectedCollectionID: String? = nil) {
+        guard let index = libraryIndex else {
+            visibleNotes = []
+            print("🔎 Mode:", visibleTag ?? selectedCollectionID ?? selection?.selectedCollectionID ?? "none")
+            print("📄 Visible notes:", visibleNotes.count)
+            return
+        }
+
+        if let visibleTag {
+            visibleCollectionID = nil
+
+            let summaries = index.notes.values
+                .filter { $0.tags.contains(visibleTag) }
+                .map { note in
+                    summaryFromIndex(
+                        noteID: note.id,
+                        note: note,
+                        fallbackCollection: collectionID(for: note.id)
+                    )
+                }
+
+            visibleNotes = sortNotes(summaries)
+        } else if let effectiveCollectionID = selectedCollectionID ?? selection?.selectedCollectionID {
+            visibleCollectionID = effectiveCollectionID
+
+            var candidateNoteIDs = Set(index.collections[effectiveCollectionID]?.noteIDs ?? [])
+            let prefixedNoteIDs = index.notes.keys.filter {
+                collectionID(for: $0) == effectiveCollectionID
+            }
+            candidateNoteIDs.formUnion(prefixedNoteIDs)
+
+            let summaries = candidateNoteIDs.compactMap { noteID -> NoteSummary? in
+                guard let note = index.notes[noteID] else { return nil }
+                return summaryFromIndex(
+                    noteID: noteID,
+                    note: note,
+                    fallbackCollection: effectiveCollectionID
+                )
+            }
+
+            visibleNotes = sortNotes(summaries)
+        } else {
+            visibleCollectionID = selectedCollectionID
+            visibleNotes = []
+        }
+
+        print("🔎 Mode:", visibleTag ?? selectedCollectionID ?? selection?.selectedCollectionID ?? "none")
+        print("📄 Visible notes:", visibleNotes.count)
     }
     
     private func transitionToLoadedLibrary(_ url: URL) {
@@ -773,18 +734,19 @@ final class LibraryManager: ObservableObject {
     }
 
     private func resetVisibleState() {
-        visibleNotes = []
+        visibleTag = nil
         visibleCollectionID = nil
         currentNoteText = ""
         needsInitialCollectionSelection = true
         selection?.selectCollection(nil)
+        updateVisibleNotes()
     }
 
     private func applyIndexSnapshot(libraryURL: URL) {
         guard let index = libraryIndex else {
             visibleCollections = []
             visibleCollectionID = nil
-            visibleNotes = []
+            updateVisibleNotes()
             return
         }
 
@@ -795,10 +757,11 @@ final class LibraryManager: ObservableObject {
         )
 
         if let selected = selection?.selectedCollectionID {
-            loadNotesFromIndex(collection: selected)
+            selectCollection(selected)
         } else {
             visibleCollectionID = nil
-            visibleNotes = []
+            updateVisibleNotes()
+            validateSelectionInVisibleNotes()
         }
     }
 
@@ -844,10 +807,15 @@ final class LibraryManager: ObservableObject {
         ensureCollectionSelection(libraryURL: libraryURL)
 
         if let selected = selection?.selectedCollectionID {
-            loadNotesFromIndex(collection: selected)
+            if visibleTag == nil {
+                visibleCollectionID = selected
+            }
+            updateVisibleNotes()
+            validateSelectionInVisibleNotes()
         } else {
             visibleCollectionID = nil
-            visibleNotes = []
+            updateVisibleNotes()
+            validateSelectionInVisibleNotes()
         }
     }
 
@@ -892,30 +860,6 @@ final class LibraryManager: ObservableObject {
         filesystemWatcher = nil
     }
 
-    private func isNoteInVisibleCollection(_ noteID: String) -> Bool {
-        guard let visibleCollectionID else { return false }
-        return noteID.hasPrefix("\(visibleCollectionID)/")
-    }
-
-    private func pinnedState(for noteID: String) -> Bool {
-        libraryIndex?.notes[noteID]?.pinned ?? false
-    }
-
-    private func summaryWithPinned(
-        _ summary: NoteSummary,
-        pinned: Bool
-    ) -> NoteSummary {
-        guard summary.pinned != pinned else { return summary }
-        return NoteSummary(
-            id: summary.id,
-            name: summary.name,
-            title: summary.title,
-            relativeDir: summary.relativeDir,
-            modifiedAt: summary.modifiedAt,
-            pinned: pinned
-        )
-    }
-
     private func summaryFromIndex(
         noteID: String,
         note: NoteIndex,
@@ -941,22 +885,6 @@ final class LibraryManager: ObservableObject {
         )
     }
 
-    private func handleAddition(
-        noteID: String,
-        libraryURL: URL
-    ) {
-        guard isNoteInVisibleCollection(noteID) else { return }
-
-        let pinned = pinnedState(for: noteID)
-        guard let summary = try? NoteSummaryFactory.make(
-            libraryURL: libraryURL,
-            noteID: noteID,
-            pinned: pinned
-        ) else { return }
-
-        upsert(summary)
-    }
-    
     private func nextAvailableCollectionName(
         in libraryURL: URL
     ) -> String {
@@ -998,142 +926,6 @@ final class LibraryManager: ObservableObject {
         }
 
         return nil
-    }
-
-    private func handleModification(
-        noteID: String,
-        libraryURL: URL
-    ) {
-        guard isNoteInVisibleCollection(noteID) else { return }
-        let pinned = pinnedState(for: noteID)
-
-        guard let summary = try? NoteSummaryFactory.make(
-            libraryURL: libraryURL,
-            noteID: noteID,
-            pinned: pinned
-        ) else { return }
-
-        upsert(summary)
-    }
-
-    private func handleRename(
-        from: String,
-        to: String,
-        libraryURL: URL
-    ) {
-        let wasVisible = isNoteInVisibleCollection(from)
-        let isVisible = isNoteInVisibleCollection(to)
-        let pinned = pinnedState(for: from)
-
-        if wasVisible {
-            removeNote(withID: from)
-        }
-
-        if isVisible {
-            guard let summary = try? NoteSummaryFactory.make(
-                libraryURL: libraryURL,
-                noteID: to,
-                pinned: pinned
-            ) else { return }
-            upsert(summary)
-        }
-
-        if selection?.selectedNoteID == from {
-            selection?.selectedNoteID = to
-            signalExternalChange(for: to)
-        }
-    }
-
-    private func handleDeletion(noteID: String) {
-        removeNote(withID: noteID)
-
-        if selection?.selectedNoteID == noteID {
-            selection?.selectedNoteID = nil
-        }
-    }
-
-    private func handleCollectionRename(
-        from: String,
-        to: String,
-        libraryURL: URL
-    ) {
-        guard from != to else { return }
-
-        Task { [weak self] in
-            guard let self else { return }
-            await self.reloadCollections(libraryURL: libraryURL)
-        }
-
-        if visibleCollectionID == from {
-            visibleCollectionID = to
-
-            Task { [weak self] in
-                guard let self else { return }
-                await self.loadNotes(
-                    libraryURL: libraryURL,
-                    collection: to
-                )
-            }
-        }
-
-        if selection?.selectedCollectionID == from {
-            selection?.selectedCollectionID = to
-        }
-    }
-
-    private func handleCollectionDeletion(
-        _ collectionID: String,
-        libraryURL: URL
-    ) {
-        let nextSelection = neighborCollection(afterRemoving: collectionID)
-
-        Task { [weak self] in
-            guard let self else { return }
-            await self.reloadCollections(libraryURL: libraryURL)
-        }
-
-        if visibleCollectionID == collectionID {
-            visibleCollectionID = nil
-            visibleNotes = []
-            selection?.selectedNoteID = nil
-        }
-
-        if selection?.selectedCollectionID == collectionID {
-            if let nextSelection {
-                selection?.selectCollection(nextSelection)
-            } else {
-                selection?.selectCollection(nil)
-            }
-        }
-    }
-
-    private func handleCollectionAddition(
-        _ collectionID: String,
-        libraryURL: URL
-    ) {
-        guard !visibleCollections.contains(collectionID) else { return }
-        Task { [weak self] in
-            guard let self else { return }
-            await self.reloadCollections(libraryURL: libraryURL)
-        }
-    }
-
-    private func upsert(_ summary: NoteSummary) {
-        if let index = visibleNotes.firstIndex(where: { $0.id == summary.id }) {
-            visibleNotes.remove(at: index)
-        }
-
-        visibleNotes.append(summary)
-        visibleNotes = sortNotes(visibleNotes)
-        signalExternalChange(for: summary.id)
-    }
-
-    private func removeNote(withID id: String) {
-        guard let index = visibleNotes.firstIndex(where: { $0.id == id }) else {
-            return
-        }
-        visibleNotes.remove(at: index)
-        externalChangeTokens.removeValue(forKey: id)
     }
 
     private func sortNotes(_ notes: [NoteSummary]) -> [NoteSummary] {
@@ -1446,13 +1238,8 @@ final class LibraryManager: ObservableObject {
         if changed {
             libraryIndex = next
             persistLibraryIndex(libraryURL: libraryURL)
-            if !visibleNotes.isEmpty {
-                let updated = visibleNotes.map { summary in
-                    let pinned = pinnedState(for: summary.id)
-                    return summaryWithPinned(summary, pinned: pinned)
-                }
-                visibleNotes = sortNotes(updated)
-            }
+            updateVisibleNotes()
+            validateSelectionInVisibleNotes()
         }
 
         let meta = (try? LibraryMetaStore.load(libraryURL)) ?? LibraryMeta()
@@ -1473,6 +1260,8 @@ final class LibraryManager: ObservableObject {
         guard activeLibraryURL == libraryURL else { return }
         libraryIndex = rebuilt
         persistLibraryIndex(libraryURL: libraryURL)
+        updateVisibleNotes()
+        validateSelectionInVisibleNotes()
         await migratePinnedStateIfNeeded(libraryURL: libraryURL)
     }
     

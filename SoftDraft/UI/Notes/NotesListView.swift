@@ -48,6 +48,7 @@ struct NotesListView: View {
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var commandRegistry: CommandRegistry
     @EnvironmentObject private var searchIndex: SearchIndex
+    @EnvironmentObject private var uiState: UIState
 
     @State private var searchQuery: String = ""
     @State private var searchResults: [SearchResult] = []
@@ -70,6 +71,17 @@ struct NotesListView: View {
 
     private var isSearchActive: Bool {
         !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var isAwaitingTagSelection: Bool {
+        uiState.sidebarMode == .tags && libraryManager.visibleTag == nil
+    }
+
+    private var contextLabel: String {
+        if uiState.sidebarMode == .tags {
+            return libraryManager.visibleTag.map { "#\($0)" } ?? "Tags"
+        }
+        return collection
     }
 
     private var activeSelectionBinding: Binding<String?> {
@@ -110,7 +122,7 @@ struct NotesListView: View {
                         } else if searchResults.isEmpty {
                             SearchEmptyState(
                                 query: searchQuery,
-                                contextLabel: libraryManager.visibleTag.map { "#\($0)" } ?? collection
+                                contextLabel: contextLabel
                             )
                             .listRowSeparator(.hidden)
                             .listRowInsets(
@@ -153,6 +165,12 @@ struct NotesListView: View {
                             }
                         }
 
+                    } else if isAwaitingTagSelection {
+                        TagSelectionPlaceholder()
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(
+                                EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
+                            )
                     } else if libraryManager.visibleNotes.isEmpty {
                         HStack {
                             Spacer()
@@ -203,9 +221,7 @@ struct NotesListView: View {
                 }
                 .focused($focusedField, equals: .results)
                 .listStyle(.sidebar)
-                .navigationTitle(
-                    libraryManager.visibleTag.map { "#\($0)" } ?? collection
-                )
+                .navigationTitle(contextLabel)
                 .onExitCommand {
                     if isSearchActive {
                         clearSearch()
@@ -561,6 +577,27 @@ private struct SearchStatusRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 6)
+    }
+}
+
+private struct TagSelectionPlaceholder: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+            VStack(spacing: 7) {
+                Text("Choose a tag")
+                    .font(.title3.weight(.medium))
+                    .foregroundStyle(.primary.opacity(0.8))
+                Text("Select a tag from the sidebar to view its notes.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 20)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(minHeight: 280)
     }
 }
 

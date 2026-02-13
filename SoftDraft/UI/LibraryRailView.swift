@@ -14,12 +14,52 @@ struct LibraryRailView: View {
     @EnvironmentObject private var selection: SelectionModel
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var uiState: UIState
+    @State private var hoveredTagID: String?
+    @State private var tagSelection: String? = nil
+    @FocusState private var tagsFocused: Bool
     
     private var selectedCollection: String {
         selection.selectedCollectionID ?? "Inbox"
     }
 
     private let sidebarSlotHeight: CGFloat = 280
+
+    private func moveTagSelection(
+        _ direction: MoveCommandDirection,
+        using proxy: ScrollViewProxy
+    ) {
+        guard uiState.sidebarMode == .tags else { return }
+
+        let tagIDs = libraryManager.allTagsSorted.map(\.id)
+        guard !tagIDs.isEmpty else { return }
+
+        let nextID: String
+        switch direction {
+        case .down:
+            if let current = libraryManager.visibleTag,
+               let index = tagIDs.firstIndex(of: current) {
+                nextID = tagIDs[min(index + 1, tagIDs.count - 1)]
+            } else {
+                nextID = tagIDs[0]
+            }
+        case .up:
+            if let current = libraryManager.visibleTag,
+               let index = tagIDs.firstIndex(of: current) {
+                nextID = tagIDs[max(index - 1, 0)]
+            } else {
+                nextID = tagIDs[tagIDs.count - 1]
+            }
+        default:
+            return
+        }
+
+        guard libraryManager.visibleTag != nextID else { return }
+        libraryManager.selectTag(nextID)
+
+        withAnimation(.easeOut(duration: 0.15)) {
+            proxy.scrollTo(nextID, anchor: .center)
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -45,40 +85,59 @@ struct LibraryRailView: View {
                     Text("TAGS")
                         .font(.caption)
                         .tracking(0.8)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 18)
+                        .foregroundStyle(Color.secondary.opacity(0.8))
+                        .padding(.top, 20)
                         .padding(.bottom, 10)
                         .padding(.horizontal, 14)
 
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 2) {
+                    List(selection: $tagSelection) {
+                        ForEach(libraryManager.allTagsSorted, id: \.id) { item in
 
-                            ForEach(libraryManager.allTagsSorted) { item in
-                                Button {
-                                    libraryManager.selectTag(item.id)
-                                } label: {
-                                    HStack {
-                                        Text("#\(item.id)")
-                                        Spacer()
-                                        Text("\(item.count)")
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .font(.system(size: 13))
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 4)
-                                }
-                                .buttonStyle(.plain)
+                            let isSelected = tagSelection == item.id
+
+                            HStack {
+                                Text("#\(item.id)")
+                                    .foregroundStyle(
+                                        isSelected
+                                        ? Color.primary
+                                        : Color.primary.opacity(0.85)
+                                    )
+
+                                Spacer()
+
+                                Text("\(item.count)")
+                                    .foregroundStyle(
+                                        isSelected
+                                        ? Color.primary.opacity(0.75)
+                                        : Color.secondary
+                                    )
                             }
-
+                            .font(.system(size: 13, weight: .regular))
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 6)
+                            .tag(item.id)
                         }
-                        .padding(.horizontal, 6)
+                    }
+                    .listStyle(.sidebar)
+                    .scrollContentBackground(.hidden)
+                    .onChange(of: tagSelection) { _, newValue in
+                        guard let newValue else { return }
+                        if libraryManager.visibleTag != newValue {
+                            libraryManager.selectTag(newValue)
+                        }
+                    }
+                    .onAppear {
+                        tagSelection = libraryManager.visibleTag
+                    }
+                    .onChange(of: libraryManager.visibleTag) { _, newValue in
+                        tagSelection = newValue
                     }
                 }
 
                 Spacer(minLength: 0)
             }
             .frame(minHeight: sidebarSlotHeight)
-            .padding(.bottom, 18)
+            .padding(.bottom, 16)
 
             Divider()
                 .padding(.horizontal, 12)
@@ -93,9 +152,30 @@ struct LibraryRailView: View {
                 .padding(.bottom, 8)
             
             if let tag = libraryManager.visibleTag {
-                Text("#(tag)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Image(systemName: "number")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Text("#\(tag)")
+                        .font(.system(size: 12, weight: .medium))
+                    Spacer()
+                    Button {
+                        libraryManager.clearTagSelection()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary.opacity(0.7))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(Color.primary.opacity(0.08))
+                )
+                .padding(.horizontal, 14)
+                .padding(.bottom, 8)
             }
             
 
@@ -111,4 +191,3 @@ struct LibraryRailView: View {
         .frame(maxHeight: .infinity, alignment: .top)
     }
 }
-

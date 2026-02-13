@@ -64,7 +64,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "964"
             endingLineNumber = "964"
-            landmarkName = "nextAvailableCollectionName(in:)"
+            landmarkName = "handleAddition(noteID:libraryURL:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -80,7 +80,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "965"
             endingLineNumber = "965"
-            landmarkName = "nextAvailableCollectionName(in:)"
+            landmarkName = "handleAddition(noteID:libraryURL:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

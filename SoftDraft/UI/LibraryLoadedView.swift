@@ -43,6 +43,8 @@ struct LibraryLoadedView: View {
                 uiState.sidebarMode = nextMode
                 if nextMode == .collections {
                     libraryManager.enterCollectionMode()
+                } else {
+                    libraryManager.enterTagMode()
                 }
             } label: {
                 Image(systemName:
