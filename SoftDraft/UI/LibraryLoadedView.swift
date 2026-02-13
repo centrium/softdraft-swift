@@ -47,6 +47,11 @@ struct LibraryLoadedView: View {
         return names.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
 
+    private var selectedNoteMarkdown: String? {
+        guard selection.selectedNoteID != nil else { return nil }
+        return libraryManager.currentNoteText
+    }
+
     // ─────────────────────────────
     // Sidebar toolbar
     // ─────────────────────────────
@@ -87,6 +92,11 @@ struct LibraryLoadedView: View {
                 Image(systemName: "square.and.pencil")
             }
             .help("New Note")
+        }
+
+        ToolbarItem(placement: .primaryAction) {
+            MarkdownShareToolbarButton(markdown: selectedNoteMarkdown)
+                .help("Share")
         }
     }
 
