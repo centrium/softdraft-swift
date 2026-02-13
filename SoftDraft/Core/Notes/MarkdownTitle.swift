@@ -19,6 +19,45 @@ enum MarkdownTitle {
         }
         return nil
     }
+
+    static func displayTitle(
+        from content: String,
+        fallbackFilename: String
+    ) -> String {
+        if let h1 = extractH1(from: content) {
+            return h1
+        }
+        return displayTitle(fromFilename: fallbackFilename)
+    }
+
+    static func displayTitle(fromFilename filename: String) -> String {
+        let base = filename.replacingOccurrences(
+            of: ".md",
+            with: "",
+            options: .caseInsensitive
+        )
+
+        let spaced = base.replacingOccurrences(
+            of: #"[-_]+"#,
+            with: " ",
+            options: .regularExpression
+        )
+
+        let collapsed = spaced.replacingOccurrences(
+            of: #"\s+"#,
+            with: " ",
+            options: .regularExpression
+        )
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !collapsed.isEmpty else { return "Untitled" }
+
+        if collapsed == collapsed.lowercased() {
+            return collapsed.localizedCapitalized
+        }
+
+        return collapsed
+    }
 }
 
 func RenameNote(

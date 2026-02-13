@@ -10,6 +10,7 @@ import SwiftUI
 struct CollectionsSidebar: View {
     let libraryURL: URL
 
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var selection: SelectionModel
     @EnvironmentObject private var commandRegistry: CommandRegistry
@@ -66,6 +67,53 @@ struct CollectionsSidebar: View {
         }
     }
 
+    private var keyboardNavigableCollections: [String] {
+        var ids: [String] = []
+        if libraryManager.visibleCollections.contains("Inbox") {
+            ids.append("Inbox")
+        }
+        ids.append(contentsOf: visibleCollections)
+        return ids
+    }
+
+    private func handleCollectionMoveCommand(
+        _ direction: MoveCommandDirection,
+        using proxy: ScrollViewProxy
+    ) {
+        guard !isRenaming else { return }
+        let ids = keyboardNavigableCollections
+        guard !ids.isEmpty else { return }
+
+        let current = selection.selectedCollectionID
+        let currentIndex = current.flatMap { ids.firstIndex(of: $0) }
+        let nextIndex: Int
+
+        switch direction {
+        case .down:
+            if let currentIndex {
+                nextIndex = min(currentIndex + 1, ids.count - 1)
+            } else {
+                nextIndex = 0
+            }
+        case .up:
+            if let currentIndex {
+                nextIndex = max(currentIndex - 1, 0)
+            } else {
+                nextIndex = ids.count - 1
+            }
+        default:
+            return
+        }
+
+        let target = ids[nextIndex]
+        guard target != current else { return }
+        DispatchQueue.main.async {
+            selection.selectCollection(target)
+            listSelection = target
+            scheduleScrollToSelection(using: proxy, animated: true)
+        }
+    }
+
     // MARK: - Ordering
 
     private var orderedCollections: [String] {
@@ -104,24 +152,34 @@ struct CollectionsSidebar: View {
                         rows(selectionEnabled: false)
                     }
                 } else {
-                    List(selection: $listSelection) {
+                    List {
                         rows(selectionEnabled: true)
                     }
                 }
             }
             .listStyle(.sidebar)
+            .focusable()
+            .focusEffectDisabled()
             .navigationTitle("Collections")
             .focused($sidebarFocused)
+            .onMoveCommand { direction in
+                handleCollectionMoveCommand(direction, using: proxy)
+            }
+            .onKeyPress(phases: .down) { keyPress in
+                if keyPress.key == .downArrow {
+                    handleCollectionMoveCommand(.down, using: proxy)
+                    return .handled
+                }
+                if keyPress.key == .upArrow {
+                    handleCollectionMoveCommand(.up, using: proxy)
+                    return .handled
+                }
+                return .ignored
+            }
             .onChange(of: selection.selectedCollectionID) { _, newValue in
                 guard listSelection != newValue else { return }
                 listSelection = newValue
                 scheduleScrollToSelection(using: proxy, animated: true)
-            }
-            .onChange(of: listSelection) { _, newValue in
-                guard selection.selectedCollectionID != newValue else { return }
-                DispatchQueue.main.async {
-                    selection.selectCollection(newValue)
-                }
             }
             .onChange(of: libraryManager.visibleCollections) { _, _ in
                 // Re-apply selection once collections are available.
@@ -160,7 +218,12 @@ struct CollectionsSidebar: View {
         Section {
             if libraryManager.visibleCollections.contains("Inbox") {
                 let isSelected = selection.selectedCollectionID == "Inbox"
-                SidebarRow {
+                SidebarRow(
+                    accentColor: SidebarAccentPalette.collections,
+                    accentOpacity: isSelected
+                        ? SidebarAccentPalette.selectedStripOpacity
+                        : SidebarAccentPalette.stripOpacity
+                ) {
                     Text("Inbox")
                         .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
                         .foregroundStyle(Color.primary.opacity(0.84))
@@ -172,7 +235,12 @@ struct CollectionsSidebar: View {
                     EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4)
                 )
                 .if(selectionEnabled) { view in
-                    view.tag("Inbox")
+                    view.onTapGesture {
+                        sidebarFocused = true
+                        guard selection.selectedCollectionID != "Inbox" else { return }
+                        selection.selectCollection("Inbox")
+                        listSelection = "Inbox"
+                    }
                 }
             }
 
@@ -185,7 +253,12 @@ struct CollectionsSidebar: View {
                         EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4)
                     )
                     .if(selectionEnabled) { view in
-                        view.tag(name)
+                        view.onTapGesture {
+                            sidebarFocused = true
+                            guard selection.selectedCollectionID != name else { return }
+                            selection.selectCollection(name)
+                            listSelection = name
+                        }
                     }
             }
 
@@ -221,7 +294,12 @@ struct CollectionsSidebar: View {
                 .onAppear { renameFieldFocused = true }
         } else {
             let isSelected = selection.selectedCollectionID == name
-            SidebarRow {
+            SidebarRow(
+                accentColor: SidebarAccentPalette.collections,
+                accentOpacity: isSelected
+                    ? SidebarAccentPalette.selectedStripOpacity
+                    : SidebarAccentPalette.stripOpacity
+            ) {
                 Text(name)
                     .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(Color.primary.opacity(0.84))
@@ -232,7 +310,12 @@ struct CollectionsSidebar: View {
     // MARK: - Selection Background
 
     private func selectionBackground(for name: String) -> some View {
-        Color.clear
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .fill(
+                selection.selectedCollectionID == name
+                ? Color.primary.opacity(colorScheme == .dark ? 0.07 : 0.05)
+                : .clear
+            )
     }
 
     // MARK: - Rename Field
@@ -264,13 +347,27 @@ struct CollectionsSidebar: View {
 
 struct SidebarRow<Content: View>: View {
     let content: Content
+    let accentColor: Color?
+    let accentOpacity: Double
 
-    init(@ViewBuilder content: () -> Content) {
+    init(
+        accentColor: Color? = nil,
+        accentOpacity: Double = SidebarAccentPalette.stripOpacity,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.accentColor = accentColor
+        self.accentOpacity = accentOpacity
         self.content = content()
     }
 
     var body: some View {
         HStack(spacing: 8) {
+            if let accentColor {
+                Rectangle()
+                    .fill(accentColor.opacity(accentOpacity))
+                    .frame(width: SidebarAccentPalette.stripWidth)
+                    .padding(.vertical, 2)
+            }
             content
             Spacer()
         }

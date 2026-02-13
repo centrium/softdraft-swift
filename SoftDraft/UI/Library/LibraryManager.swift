@@ -873,7 +873,15 @@ final class LibraryManager: ObservableObject {
             with: "",
             options: .caseInsensitive
         )
-        let title = note.title.isEmpty ? name : note.title
+        let friendlyFromFilename = MarkdownTitle.displayTitle(fromFilename: filename)
+        let title: String
+        if note.title.isEmpty {
+            title = friendlyFromFilename
+        } else if note.title == name {
+            title = friendlyFromFilename
+        } else {
+            title = note.title
+        }
 
         return NoteSummary(
             id: note.id,
@@ -1199,6 +1207,9 @@ final class LibraryManager: ObservableObject {
             self.libraryIndex = result.index
             self.persistLibraryIndex(libraryURL: libraryURL)
             self.refreshVisibleStateFromIndex(libraryURL: libraryURL)
+            if let searchIndex = self.boundSearchIndex {
+                self.rebuildSearchIndex(searchIndex)
+            }
             await self.migratePinnedStateIfNeeded(libraryURL: libraryURL)
         }
     }

@@ -183,7 +183,8 @@ final class LibraryIndexReconcilerTests: XCTestCase {
             notes: [
                 noteID: LibraryIndexReconciler.NoteSnapshot(
                     modified: Date(timeIntervalSince1970: 250),
-                    filename: "catchup.md"
+                    filename: "catchup.md",
+                    title: "Pinned Title"
                 )
             ]
         )
@@ -225,7 +226,8 @@ final class LibraryIndexReconcilerTests: XCTestCase {
             notes: [
                 newID: LibraryIndexReconciler.NoteSnapshot(
                     modified: Date(timeIntervalSince1970: 100),
-                    filename: "new-name.md"
+                    filename: "new-name.md",
+                    title: "new-name"
                 )
             ]
         )

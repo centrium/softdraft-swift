@@ -47,7 +47,10 @@ enum NoteSummaryFactory {
             encoding: .utf8
         )) ?? ""
 
-        let title = MarkdownTitle.extractH1(from: content) ?? name
+        let title = MarkdownTitle.displayTitle(
+            from: content,
+            fallbackFilename: fileURL.lastPathComponent
+        )
 
         return NoteSummary(
             id: "\(collection)/\(fileURL.lastPathComponent)",
@@ -59,4 +62,3 @@ enum NoteSummaryFactory {
         )
     }
 }
-

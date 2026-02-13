@@ -220,15 +220,19 @@ enum LibraryIndexMutator {
         let existing = next.notes[noteID] ?? filesystemData.baseNote
         let oldTags = Set(existing?.tags ?? [])
         var newTags = oldTags
+        var parsedTitle: String? = nil
 
-        let shouldParseTags = existing == nil || next.notes[noteID] != nil
-        if shouldParseTags, let libraryURL {
+        if let libraryURL {
             let noteURL = libraryURL
                 .appendingPathComponent(CollectionStore.collectionsDir)
                 .appendingPathComponent(noteID)
 
             if let markdown = try? String(contentsOf: noteURL, encoding: .utf8) {
                 newTags = TagParser.parseTags(from: markdown)
+                parsedTitle = MarkdownTitle.displayTitle(
+                    from: markdown,
+                    fallbackFilename: noteURL.lastPathComponent
+                )
             }
         }
 
@@ -239,7 +243,7 @@ enum LibraryIndexMutator {
             let updated = NoteIndex(
                 id: noteID,
                 path: noteID,
-                title: filesystemData.title ?? existing.title,
+                title: filesystemData.title ?? parsedTitle ?? existing.title,
                 modified: filesystemData.modified ?? existing.modified,
                 pinned: existing.pinned,
                 tags: sortedTags
@@ -248,7 +252,7 @@ enum LibraryIndexMutator {
             return next
         }
 
-        let title = filesystemData.title ?? titleFallback(for: noteID)
+        let title = filesystemData.title ?? parsedTitle ?? titleFallback(for: noteID)
         let modified = filesystemData.modified ?? Date()
 
         next.notes[noteID] = NoteIndex(
@@ -311,10 +315,6 @@ enum LibraryIndexMutator {
 
     private static func titleFallback(for noteID: String) -> String {
         let filename = (noteID as NSString).lastPathComponent
-        return filename.replacingOccurrences(
-            of: ".md",
-            with: "",
-            options: .caseInsensitive
-        )
+        return MarkdownTitle.displayTitle(fromFilename: filename)
     }
 }

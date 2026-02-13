@@ -95,9 +95,12 @@ enum LibraryIndexBuilder {
 
                 let filename = noteURL.lastPathComponent
                 let noteID = "\(collectionID)/\(filename)"
-                let title = noteURL.deletingPathExtension().lastPathComponent
                 let modified = noteValues?.contentModificationDate ?? Date()
                 let markdown = (try? String(contentsOf: noteURL, encoding: .utf8)) ?? ""
+                let title = MarkdownTitle.displayTitle(
+                    from: markdown,
+                    fallbackFilename: filename
+                )
                 let parsedTags = TagParser.parseTags(from: markdown)
                 let tags = parsedTags.sorted()
                 let existingPinned = existingPinnedByNoteID[noteID] ?? false

@@ -10,13 +10,14 @@ struct NoteSurfaceView: View {
     let noteID: String
     let libraryURL: URL
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var showLoadingAffordance = false
     @State private var activeNoteID: String?
     @State private var shellDebounceTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
-            Color(nsColor: .textBackgroundColor)
+            editorBackground
 
             NoteEditorView(noteID: noteID) { readyNoteID in
                 handleEditorReady(readyNoteID)
@@ -33,6 +34,13 @@ struct NoteSurfaceView: View {
         .onChange(of: noteID) { _, newValue in
             prepareShell(for: newValue)
         }
+    }
+
+    private var editorBackground: Color {
+        if colorScheme == .dark {
+            return Color(red: 0.11, green: 0.11, blue: 0.10)
+        }
+        return Color(red: 0.97, green: 0.96, blue: 0.94)
     }
 
     private func prepareShell(for noteID: String) {
@@ -75,10 +83,13 @@ struct NoteSurfaceView: View {
 
 struct EditorShellView: View {
     let showSpinner: Bool
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ZStack {
-            Color(nsColor: .textBackgroundColor)
+            (colorScheme == .dark
+             ? Color(red: 0.11, green: 0.11, blue: 0.10)
+             : Color(red: 0.97, green: 0.96, blue: 0.94))
                 .opacity(0.9)
 
             if showSpinner {

@@ -17,8 +17,8 @@ struct NotesListView: View {
         case results
     }
 
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var selection: SelectionModel
-    @State private var listSelection: String?
 
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var commandRegistry: CommandRegistry
@@ -49,8 +49,28 @@ struct NotesListView: View {
         }
     }
 
+    private var pinnedVisibleNotes: [NoteSummary] {
+        sortedVisibleNotes.filter(\.pinned)
+    }
+
+    private var unpinnedVisibleNotes: [NoteSummary] {
+        sortedVisibleNotes.filter { !$0.pinned }
+    }
+
+    private var keyboardNavigableNoteIDs: [String] {
+        sortedVisibleNotes.map(\.id)
+    }
+
     private var isSearchActive: Bool {
         !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var modeAccentColor: Color {
+        uiState.sidebarMode.sidebarAccentColor
+    }
+
+    private var selectionFill: Color {
+        Color.primary.opacity(colorScheme == .dark ? 0.07 : 0.05)
     }
 
     private var isAwaitingTagSelection: Bool {
@@ -64,27 +84,13 @@ struct NotesListView: View {
         return collection
     }
 
-    private var activeSelectionBinding: Binding<String?> {
-        if isSearchActive {
-            return Binding(
-                get: { searchSelection },
-                set: { newValue in
-                    guard searchSelection != newValue else { return }
-                    searchSelection = newValue
-                }
-            )
-        }
-
-        return listSelectionBinding
-    }
-    
     var body: some View {
         ZStack {
 
             VStack(spacing: 0) {
                 searchField
 
-                List(selection: activeSelectionBinding) {
+                List {
                     if !isSearchActive {
                         listTopSpacing
                     }
@@ -117,19 +123,36 @@ struct NotesListView: View {
                                     SearchResultRow(
                                         note: result.note,
                                         isSelected: searchSelection == result.id,
-                                        isHovered: result.isHovered
+                                        isHovered: result.isHovered,
+                                        accentColor: modeAccentColor,
+                                        accentOpacity: searchSelection == result.id
+                                            ? SidebarAccentPalette.selectedStripOpacity
+                                            : SidebarAccentPalette.stripOpacity,
+                                        matchType: result.hint?.kindLabel,
+                                        matchContext: result.hint?.context
                                     )
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .frame(minHeight: 36)
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
-                                .listRowBackground(Color.clear)
+                                .listRowBackground(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(
+                                            searchSelection == result.id
+                                            ? selectionFill
+                                            : .clear
+                                        )
+                                )
                                 .listRowInsets(
                                     EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4)
                                 )
                                 .listRowSeparator(.hidden)
-                                .tag(result.id)
+                                .onTapGesture {
+                                    focusedField = .results
+                                    guard searchSelection != result.id else { return }
+                                    searchSelection = result.id
+                                }
                                 .onHover { hovering in
                                     updateHoverState(for: result.id, hovering: hovering)
                                 }
@@ -158,24 +181,84 @@ struct NotesListView: View {
                         .padding(.vertical, 8)
                         .listRowSeparator(.hidden)
                     } else {
-                        ForEach(sortedVisibleNotes, id: \.id) { note in
+                        ForEach(pinnedVisibleNotes, id: \.id) { note in
                             NoteRow(
                                 note: note,
                                 isSelected: selection.selectedNoteID == note.id,
-                                showsPinnedIndicator: note.pinned
+                                showsPinnedIndicator: note.pinned,
+                                accentColor: modeAccentColor,
+                                accentOpacity: noteAccentOpacity(
+                                    isSelected: selection.selectedNoteID == note.id,
+                                    isPinned: note.pinned
+                                )
                             )
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .frame(minHeight: 36)
-                            .listRowBackground(Color.clear)
+                            .listRowBackground(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(
+                                        selection.selectedNoteID == note.id
+                                        ? selectionFill
+                                        : .clear
+                                    )
+                            )
                             .listRowInsets(
                                 EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4)
                             )
-                            .tag(note.id)
+                            .onTapGesture {
+                                focusedField = .results
+                                guard selection.selectedNoteID != note.id else { return }
+                                selection.selectedNoteID = note.id
+                            }
+                        }
+
+                        if !pinnedVisibleNotes.isEmpty && !unpinnedVisibleNotes.isEmpty {
+                            Color.clear
+                                .frame(height: 6)
+                                .listRowInsets(
+                                    EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
+                                )
+                                .listRowSeparator(.hidden)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
+
+                        ForEach(unpinnedVisibleNotes, id: \.id) { note in
+                            NoteRow(
+                                note: note,
+                                isSelected: selection.selectedNoteID == note.id,
+                                showsPinnedIndicator: note.pinned,
+                                accentColor: modeAccentColor,
+                                accentOpacity: noteAccentOpacity(
+                                    isSelected: selection.selectedNoteID == note.id,
+                                    isPinned: note.pinned
+                                )
+                            )
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(minHeight: 36)
+                            .listRowBackground(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(
+                                        selection.selectedNoteID == note.id
+                                        ? selectionFill
+                                        : .clear
+                                    )
+                            )
+                            .listRowInsets(
+                                EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4)
+                            )
+                            .onTapGesture {
+                                focusedField = .results
+                                guard selection.selectedNoteID != note.id else { return }
+                                selection.selectedNoteID = note.id
+                            }
                         }
                     }
                 }
                 .focused($focusedField, equals: .results)
                 .listStyle(.sidebar)
+                .focusable()
+                .focusEffectDisabled()
                 .navigationTitle(contextLabel)
                 .onExitCommand {
                     if isSearchActive {
@@ -194,6 +277,32 @@ struct NotesListView: View {
 
                     return .ignored
                 }
+                .onMoveCommand { direction in
+                    if isSearchActive {
+                        handleSearchMoveCommand(direction)
+                    } else {
+                        handleNoteMoveCommand(direction)
+                    }
+                }
+                .onKeyPress(phases: .down) { keyPress in
+                    if keyPress.key == .downArrow {
+                        if isSearchActive {
+                            handleSearchMoveCommand(.down)
+                        } else {
+                            handleNoteMoveCommand(.down)
+                        }
+                        return .handled
+                    }
+                    if keyPress.key == .upArrow {
+                        if isSearchActive {
+                            handleSearchMoveCommand(.up)
+                        } else {
+                            handleNoteMoveCommand(.up)
+                        }
+                        return .handled
+                    }
+                    return .ignored
+                }
                 .onReceive(searchIndex.$entries) { _ in
                     guard isSearchActive else { return }
                     scheduleSearch(for: searchQuery)
@@ -201,20 +310,6 @@ struct NotesListView: View {
                 .onReceive(libraryManager.$visibleNotes) { _ in
                     guard isSearchActive else { return }
                     scheduleSearch(for: searchQuery)
-                }
-                .onAppear {
-                    syncSelectionFromModel()
-                }
-                .onChange(of: selection.selectedNoteID) { _, newValue in
-                    guard listSelection != newValue else { return }
-                    listSelection = newValue
-                }
-                .onChange(of: listSelection) { _, newValue in
-                    guard !isSearchActive else { return }
-                    guard selection.selectedNoteID != newValue else { return }
-                    Task { @MainActor in
-                        selection.selectedNoteID = newValue
-                    }
                 }
                 .animation(.easeOut(duration: 0.12), value: searchResults)
             }
@@ -248,21 +343,6 @@ struct NotesListView: View {
                 )
             }
         }
-    }
-
-    private var listSelectionBinding: Binding<String?> {
-        Binding(
-            get: { listSelection },
-            set: { newValue in
-                guard listSelection != newValue else { return }
-                listSelection = newValue
-            }
-        )
-    }
-
-    private func syncSelectionFromModel() {
-        guard listSelection != selection.selectedNoteID else { return }
-        listSelection = selection.selectedNoteID
     }
 
     private func scheduleSearch(for query: String) {
@@ -312,12 +392,10 @@ struct NotesListView: View {
         searchSelection = nil
         hoveredSearchResult = nil
         isSearching = false
-        syncSelectionFromModel()
     }
 
     private func openSearchResult(_ id: String) {
         selection.selectedNoteID = id
-        listSelection = id
         clearSearch()
     }
 
@@ -349,6 +427,40 @@ struct NotesListView: View {
         searchSelection = ids[nextIndex]
     }
 
+    private func handleNoteMoveCommand(_ direction: MoveCommandDirection) {
+        guard !isSearchActive else { return }
+        guard !isAwaitingTagSelection else { return }
+
+        let ids = keyboardNavigableNoteIDs
+        guard !ids.isEmpty else { return }
+
+        let currentIndex = selection.selectedNoteID.flatMap { ids.firstIndex(of: $0) }
+        let nextIndex: Int
+
+        switch direction {
+        case .down:
+            if let currentIndex {
+                nextIndex = min(currentIndex + 1, ids.count - 1)
+            } else {
+                nextIndex = 0
+            }
+        case .up:
+            if let currentIndex {
+                nextIndex = max(currentIndex - 1, 0)
+            } else {
+                nextIndex = ids.count - 1
+            }
+        default:
+            return
+        }
+
+        let target = ids[nextIndex]
+        guard target != selection.selectedNoteID else { return }
+        DispatchQueue.main.async {
+            selection.selectedNoteID = target
+        }
+    }
+
     private func updateHoverState(for id: String, hovering: Bool) {
         if hovering {
             hoveredSearchResult = id
@@ -359,7 +471,7 @@ struct NotesListView: View {
 
     private var listTopSpacing: some View {
         Color.clear
-            .frame(height: 0)
+            .frame(height: 6)
             .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
             .listRowSeparator(.hidden)
             .allowsHitTesting(false)
@@ -403,7 +515,7 @@ struct NotesListView: View {
         .padding(.vertical, 5)
         .padding(.horizontal, 10)
         .padding(.top, 4)
-        .padding(.bottom, 2)
+        .padding(.bottom, 6)
         .onExitCommand {
             if isSearchActive {
                 clearSearch()
@@ -415,14 +527,24 @@ struct NotesListView: View {
         let notesByID = Dictionary(
             uniqueKeysWithValues: libraryManager.visibleNotes.map { ($0.id, $0) }
         )
+        let entriesByID = Dictionary(
+            uniqueKeysWithValues: searchIndex.entries.map { ($0.id, $0) }
+        )
+        let query = normalisedSearchQuery(searchQuery)
 
         return searchResults.compactMap { result in
             guard let note = notesByID[result.id] else { return nil }
+
             return SearchDisplayResult(
                 id: result.id,
                 note: note,
                 score: result.score,
-                hint: SearchHint(matchHint: result.matchHint),
+                hint: SearchHint(
+                    matchHint: result.matchHint,
+                    note: note,
+                    entry: entriesByID[result.id],
+                    query: query
+                ),
                 isHovered: hoveredSearchResult == result.id
             )
         }
@@ -437,22 +559,84 @@ struct NotesListView: View {
             return lhs.note.title.localizedCaseInsensitiveCompare(rhs.note.title) == .orderedAscending
         }
     }
+
+    private func normalisedSearchQuery(_ rawQuery: String) -> String {
+        var query = SearchNormaliser.normalise(rawQuery)
+        while query.first == "#" {
+            query.removeFirst()
+        }
+        return query.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func noteAccentOpacity(isSelected: Bool, isPinned: Bool) -> Double {
+        if isSelected {
+            return SidebarAccentPalette.selectedStripOpacity
+        }
+        if isPinned {
+            return SidebarAccentPalette.pinnedStripOpacity
+        }
+        return SidebarAccentPalette.stripOpacity
+    }
 }
 
 private struct SearchHint: Equatable {
     let rank: Int
+    let kindLabel: String
+    let context: String?
 
-    init?(matchHint: String?) {
+    init?(
+        matchHint: String?,
+        note: NoteSummary,
+        entry: SearchIndexEntry?,
+        query: String
+    ) {
         guard let hint = matchHint else { return nil }
         if hint == "Tag" {
             rank = 0
+            kindLabel = "tag"
+            if let tag = entry?.tags.first(where: { $0.contains(query) }), !tag.isEmpty {
+                context = "#\(tag)"
+            } else if !query.isEmpty {
+                context = "#\(query)"
+            } else {
+                context = nil
+            }
         } else if hint == "Title" {
             rank = 1
+            kindLabel = "title"
+            context = Self.snippet(in: note.title, query: query)
         } else if hint == "Body" {
             rank = 3
+            kindLabel = "body"
+            context = Self.snippet(in: entry?.bodyText ?? "", query: query)
         } else {
             rank = 2
+            kindLabel = "heading"
+            context = hint
         }
+    }
+
+    private static func snippet(in source: String, query: String) -> String? {
+        let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        guard !query.isEmpty else { return String(trimmed.prefix(60)) }
+
+        guard let range = trimmed.range(of: query, options: .caseInsensitive) else {
+            return String(trimmed.prefix(60))
+        }
+
+        let index = trimmed.distance(from: trimmed.startIndex, to: range.lowerBound)
+        let startOffset = max(0, index - 18)
+        let endOffset = min(trimmed.count, index + query.count + 26)
+
+        let start = trimmed.index(trimmed.startIndex, offsetBy: startOffset)
+        let end = trimmed.index(trimmed.startIndex, offsetBy: endOffset)
+        let slice = String(trimmed[start..<end]).trimmingCharacters(in: .whitespaces)
+        if slice.isEmpty { return nil }
+
+        let leading = startOffset > 0 ? "..." : ""
+        let trailing = endOffset < trimmed.count ? "..." : ""
+        return "\(leading)\(slice)\(trailing)"
     }
 }
 
@@ -468,26 +652,54 @@ private struct SearchResultRow: View {
     let note: NoteSummary
     let isSelected: Bool
     let isHovered: Bool
+    let accentColor: Color
+    let accentOpacity: Double
+    let matchType: String?
+    let matchContext: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(note.title)
-                .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
-                .lineLimit(1)
-                .foregroundStyle(
-                    isHovered
-                    ? Color.primary.opacity(0.92)
-                    : Color.primary.opacity(0.82)
-                )
+        HStack(spacing: 6) {
+            Rectangle()
+                .fill(accentColor.opacity(accentOpacity))
+                .frame(width: SidebarAccentPalette.stripWidth)
+                .padding(.vertical, 2)
 
-            HStack(spacing: 8) {
-                Text(note.modifiedAt.formatted(date: .abbreviated, time: .omitted))
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundStyle(.secondary.opacity(0.85))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(note.title)
+                    .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
+                    .lineLimit(1)
+                    .foregroundStyle(
+                        isHovered
+                        ? Color.primary.opacity(0.92)
+                        : Color.primary.opacity(0.82)
+                    )
+
+                if let metadataLine, !metadataLine.isEmpty {
+                    Text(metadataLine)
+                        .font(.system(size: 11, weight: .regular))
+                        .lineLimit(1)
+                        .foregroundStyle(.secondary.opacity(0.72))
+                }
             }
         }
         .padding(.vertical, 3)
         .padding(.horizontal, 2)
+    }
+
+    private var metadataLine: String? {
+        let type = matchType?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let context = matchContext?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let type, !type.isEmpty, let context, !context.isEmpty {
+            return "\(type) · \(context)"
+        }
+        if let type, !type.isEmpty {
+            return type
+        }
+        if let context, !context.isEmpty {
+            return context
+        }
+        return nil
     }
 }
 

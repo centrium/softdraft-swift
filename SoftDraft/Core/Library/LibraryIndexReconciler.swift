@@ -17,6 +17,7 @@ enum LibraryIndexReconciler {
     struct NoteSnapshot {
         let modified: Date
         let filename: String
+        let title: String
     }
 
     struct FilesystemSnapshot {
@@ -82,7 +83,7 @@ enum LibraryIndexReconciler {
             else { return nil }
 
             let delta = abs(snapshotNote.modified.timeIntervalSince(indexed.modified))
-            if delta > 0.0005 {
+            if delta > 0.0005 || indexed.title != snapshotNote.title {
                 return .modified(noteID: noteID)
             }
             return nil
@@ -98,9 +99,7 @@ enum LibraryIndexReconciler {
 
         let provider: NoteMetadataProvider = { noteID in
             guard let note = snapshot.notes[noteID] else { return nil }
-            let title = note.filename
-                .replacingOccurrences(of: ".md", with: "", options: .caseInsensitive)
-            return (note.modified, title)
+            return (note.modified, note.title)
         }
 
         return applyEventsSync(
@@ -320,17 +319,21 @@ enum LibraryIndexReconciler {
             )
         }
 
-        guard let modified = metadataProvider(noteID)?.modified else {
+        guard let metadata = metadataProvider(noteID) else {
             return false
         }
 
-        let delta = abs(existing.modified.timeIntervalSince(modified))
-        guard delta > 0.0005 else { return false }
+        let delta = abs(existing.modified.timeIntervalSince(metadata.modified))
+        let titleChanged = existing.title != metadata.title
+        guard delta > 0.0005 || titleChanged else { return false }
 
         index = LibraryIndexMutator.updateNoteFromFilesystem(
             index: index,
             noteID: noteID,
-            filesystemData: .init(modified: modified),
+            filesystemData: .init(
+                title: metadata.title,
+                modified: metadata.modified
+            ),
             libraryURL: libraryURL
         )
 
@@ -453,8 +456,7 @@ enum LibraryIndexReconciler {
             return nil
         }
 
-        let titleFallback = filename
-            .replacingOccurrences(of: ".md", with: "", options: .caseInsensitive)
+        let titleFallback = MarkdownTitle.displayTitle(fromFilename: filename)
 
         return (collectionID, filename, titleFallback)
     }
@@ -477,7 +479,11 @@ enum LibraryIndexReconciler {
         }
 
         let modified = values.contentModificationDate ?? Date()
-        let title = url.deletingPathExtension().lastPathComponent
+        let markdown = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        let title = MarkdownTitle.displayTitle(
+            from: markdown,
+            fallbackFilename: parsed.filename
+        )
         return (modified, title)
     }
 
@@ -522,10 +528,16 @@ enum LibraryIndexReconciler {
                 let filename = noteURL.lastPathComponent
                 let noteID = "\(collectionID)/\(filename)"
                 let modified = noteValues?.contentModificationDate ?? Date()
+                let markdown = (try? String(contentsOf: noteURL, encoding: .utf8)) ?? ""
+                let title = MarkdownTitle.displayTitle(
+                    from: markdown,
+                    fallbackFilename: filename
+                )
 
                 notes[noteID] = NoteSnapshot(
                     modified: modified,
-                    filename: filename
+                    filename: filename,
+                    title: title
                 )
             }
         }
