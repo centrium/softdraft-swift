@@ -490,6 +490,11 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
             result.foregroundColor = Color.accentColor.opacity(0.9)
             result.underlineStyle = Text.LineStyle.single
             return result
+        case .tag(let name):
+            var attr = AttributedString("#\(name)")
+            attr.font = .system(.body, weight: .medium)
+            attr.foregroundColor = Color(red: 0.50, green: 0.39, blue: 0.38)
+            return attr
 
         default:
             return AttributedString("[inline]")
@@ -593,7 +598,7 @@ private struct PreviewDocumentView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .onChange(of: coverContext) { newValue in
+        .onChange(of: coverContext) { _, newValue in
             coverVisibility = newValue == nil ? .failed : .pending
         }
     }

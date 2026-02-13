@@ -29,6 +29,24 @@ struct LibraryLoadedView: View {
         collectionSummaries[selectedCollection]
     }
 
+    private var isMoveSheetPresented: Binding<Bool> {
+        Binding(
+            get: { selection.pendingMove != nil },
+            set: { isPresented in
+                guard !isPresented else { return }
+                commandRegistry.run("command.cancel")
+            }
+        )
+    }
+
+    private var moveDestinationCollections: [String] {
+        var names = Set(libraryManager.visibleCollections)
+        if let pending = selection.pendingMove {
+            names.insert(collectionID(for: pending.noteID))
+        }
+        return names.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
     // ─────────────────────────────
     // Sidebar toolbar
     // ─────────────────────────────
@@ -127,6 +145,27 @@ private extension LibraryLoadedView {
 
             // ⬇️ Editor + Preview layering happens here
             layeredEditor
+                .sheet(isPresented: isMoveSheetPresented) {
+                    if let pending = selection.pendingMove {
+                        MoveNoteSheet(
+                            currentCollection: collectionID(for: pending.noteID),
+                            noteCount: 1,
+                            collections: moveDestinationCollections,
+                            onMove: { destination in
+                                selection.pendingMove = PendingMove(
+                                    noteID: pending.noteID,
+                                    destinationCollection: destination
+                                )
+                                commandRegistry.run("note.move.confirm")
+                            },
+                            onCancel: {
+                                commandRegistry.run("command.cancel")
+                            }
+                        )
+                    } else {
+                        EmptyView()
+                    }
+                }
         }
         .onReceive(libraryManager.$visibleNotes) { notes in
             guard let activeCollection = libraryManager.visibleCollectionID else { return }
@@ -239,6 +278,11 @@ private extension LibraryLoadedView {
             noteCount: notes.count,
             lastUpdated: latestDate
         )
+    }
+
+    func collectionID(for noteID: String) -> String {
+        let collectionID = (noteID as NSString).deletingLastPathComponent
+        return collectionID.isEmpty ? "Inbox" : collectionID
     }
 
     var imageInsertionOverlay: some View {

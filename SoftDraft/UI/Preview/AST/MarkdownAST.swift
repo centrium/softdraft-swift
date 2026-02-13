@@ -67,6 +67,7 @@ struct MarkdownLink: Equatable, Codable {
 
 enum MarkdownInline: Equatable {
     case text(String)
+    case tag(String)
     case emphasis([MarkdownInline])
     case strong([MarkdownInline])
     case inlineCode(String)
@@ -271,6 +272,7 @@ extension MarkdownInline: Codable {
 
     private enum InlineType: String, Codable {
         case text
+        case tag
         case emphasis
         case strong
         case inlineCode
@@ -287,6 +289,9 @@ extension MarkdownInline: Codable {
         case .text(let text):
             try container.encode(InlineType.text, forKey: .type)
             try container.encode(text, forKey: .text)
+        case .tag(let tag):
+            try container.encode(InlineType.tag, forKey: .type)
+            try container.encode(tag, forKey: .text)
         case .emphasis(let children):
             try container.encode(InlineType.emphasis, forKey: .type)
             try container.encode(children, forKey: .children)
@@ -323,6 +328,9 @@ extension MarkdownInline: Codable {
         case .text:
             let text = try container.decode(String.self, forKey: .text)
             self = .text(text)
+        case .tag:
+            let tag = try container.decode(String.self, forKey: .text)
+            self = .tag(tag)
         case .emphasis:
             let children = try container.decode([MarkdownInline].self, forKey: .children)
             self = .emphasis(children)

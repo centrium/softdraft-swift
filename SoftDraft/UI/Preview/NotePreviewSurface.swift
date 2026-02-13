@@ -134,6 +134,8 @@ private enum MarkdownPreviewDiagnostics {
             switch inline {
             case .text(let value):
                 result.append(value)
+            case .tag(let value):
+                result.append("#" + value)
             case .emphasis(let children),
                  .strong(let children),
                  .highlight(let children),
@@ -208,6 +210,7 @@ private extension MarkdownInline {
     var displayName: String {
         switch self {
         case .text(let value): return "Text(\(value))"
+        case .tag(let value): return "Tag(\(value))"
         case .emphasis: return "Emphasis"
         case .strong: return "Strong"
         case .inlineCode(let code): return "InlineCode(\(code))"

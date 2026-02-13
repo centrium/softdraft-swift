@@ -21,9 +21,14 @@ final class UIState: ObservableObject {
     @Published var isPreviewModeEnabled: Bool = false
     @Published var isInsertingImage: Bool = false
     @Published var imageInsertionError: String? = nil
+    @Published private(set) var notesListFocusRequestToken: UInt = 0
 
     /// Derived convenience for readability elsewhere
     var isZenModeEnabled: Bool {
         splitViewVisibility == .detailOnly
+    }
+
+    func requestNotesListFocus() {
+        notesListFocusRequestToken &+= 1
     }
 }

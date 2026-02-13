@@ -5,11 +5,6 @@
 //  Created by Matt Adams on 23/01/2026.
 //
 
-//
-//  ConfirmMoveNoteCommand.swift
-//  SoftDraft
-//
-
 import SwiftUI
 
 let confirmMoveNoteCommand = AppCommand(
@@ -21,14 +16,11 @@ let confirmMoveNoteCommand = AppCommand(
         ctx.libraryManager.activeLibraryURL != nil
     },
     perform: { ctx in
-        print("🚚 ConfirmMoveNoteCommand running")
-
         guard
             let pending = ctx.selection.pendingMove,
             let destination = pending.destinationCollection,
             let libraryURL = ctx.libraryManager.activeLibraryURL
         else {
-            print("❌ Guard failed", ctx.selection.pendingMove as Any)
             return
         }
 
@@ -44,8 +36,6 @@ let confirmMoveNoteCommand = AppCommand(
         // Clear pending state FIRST
         ctx.selection.pendingMove = nil
 
-        print("➡️ Moving \(pending.noteID) to \(destination)")
-
         ctx.libraryManager.beginInternalWrite(noteID: pending.noteID)
         do {
             let result = try NoteStore.move(
@@ -53,15 +43,14 @@ let confirmMoveNoteCommand = AppCommand(
                 noteID: pending.noteID,
                 destCollection: destination
             )
-            print("✅ Move result:", result)
             ctx.libraryManager.replaceNoteID(
                 oldID: pending.noteID,
                 newID: result
             )
             ctx.libraryManager.suppressEvents(for: result)
         } catch {
-            print("❌ Failed to move note:", error)
             ctx.libraryManager.endInternalWrite(noteID: pending.noteID)
+            ctx.uiState.requestNotesListFocus()
             return
         }
 
@@ -71,5 +60,6 @@ let confirmMoveNoteCommand = AppCommand(
             preferredSelection: selectionPlan.preferredNextID,
             enforceSelection: selectionPlan.affectedVisibleList
         )
+        ctx.uiState.requestNotesListFocus()
     }
 )

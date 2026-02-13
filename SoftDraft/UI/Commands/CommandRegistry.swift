@@ -79,6 +79,12 @@ final class CommandRegistry: ObservableObject {
                 self?.scheduleContextChange()
             }
             .store(in: &cancellables)
+
+        context.selection.$pendingMove
+            .sink { [weak self] _ in
+                self?.scheduleContextChange()
+            }
+            .store(in: &cancellables)
     }
 
     private func scheduleContextChange() {

@@ -4,7 +4,8 @@ struct MarkdownASTParser {
     func parse(_ source: String) -> MarkdownDocument {
         var blockParser = BlockParser(lines: source.normalizedMarkdownLines())
         let blocks = blockParser.parseBlocks()
-        return MarkdownDocument(root: .document(blocks: blocks))
+        let document = MarkdownDocument(root: .document(blocks: blocks))
+        return MarkdownInlineTagTransform().apply(to: document)
     }
 }
 

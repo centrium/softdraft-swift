@@ -14,8 +14,7 @@ let cancelPendingCommand = AppCommand(
         ctx.selection.pendingMove != nil
     },
     perform: { ctx in
-        print("Cancelling")
-        // Clear any pending two-step command
         ctx.selection.pendingMove = nil
+        ctx.uiState.requestNotesListFocus()
     }
 )

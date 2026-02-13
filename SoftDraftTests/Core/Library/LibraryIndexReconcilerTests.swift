@@ -11,7 +11,7 @@ import XCTest
 
 final class LibraryIndexReconcilerTests: XCTestCase {
 
-    func testModifiedPreservesPinnedAndTitle() async {
+    func testModifiedPreservesPinnedAndUpdatesTitle() async {
         let noteID = "Inbox/pinned.md"
         let initial = makeIndex(
             collections: [
@@ -39,7 +39,7 @@ final class LibraryIndexReconcilerTests: XCTestCase {
 
         XCTAssertTrue(result.changed)
         XCTAssertEqual(result.index.notes[noteID]?.pinned, true)
-        XCTAssertEqual(result.index.notes[noteID]?.title, "Custom Title")
+        XCTAssertEqual(result.index.notes[noteID]?.title, "pinned")
         XCTAssertEqual(
             result.index.notes[noteID]?.modified,
             Date(timeIntervalSince1970: 200)

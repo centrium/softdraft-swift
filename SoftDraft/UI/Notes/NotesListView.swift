@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 struct NotesListView: View {
 
@@ -32,10 +33,6 @@ struct NotesListView: View {
     @State private var searchTask: Task<Void, Never>? = nil
     @State private var hoveredSearchResult: String? = nil
     @FocusState private var focusedField: FocusField?
-    
-    private var collections: [String] {
-        libraryManager.allCollections()
-    }
 
     private var sortedVisibleNotes: [NoteSummary] {
         libraryManager.visibleNotes.sorted { lhs, rhs in
@@ -311,36 +308,10 @@ struct NotesListView: View {
                     guard isSearchActive else { return }
                     scheduleSearch(for: searchQuery)
                 }
+                .onReceive(uiState.$notesListFocusRequestToken.dropFirst()) { _ in
+                    focusedField = .results
+                }
                 .animation(.easeOut(duration: 0.12), value: searchResults)
-            }
-            
-            
-            
-
-            // ─────────────────────────────
-            // Move Note Picker (overlay)
-            // ─────────────────────────────
-            if let pending = selection.pendingMove {
-                MoveNotePicker(
-                    selection: selection,
-                    collections: collections,
-                    onSelect: { destination in
-                        selection.pendingMove = nil
-
-                        selection.pendingMove = PendingMove(
-                            noteID: pending.noteID,
-                            destinationCollection: destination
-                        )
-                        commandRegistry.run("note.move.confirm")
-                    },
-                    onCancel: {
-                        commandRegistry.run("command.cancel")
-                    },
-                )
-                .background(
-                    Color.black.opacity(0.05)
-                        .ignoresSafeArea()
-                )
             }
         }
     }

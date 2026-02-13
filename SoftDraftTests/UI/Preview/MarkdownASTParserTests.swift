@@ -318,6 +318,192 @@ final class MarkdownASTParserTests: XCTestCase {
         XCTAssertEqual(link.children, [.text("http://example.com")])
     }
 
+    func testTagParsesInsideSentence() {
+        let source = "Hello #tag world"
+        guard let inlines = firstParagraphInlines(from: parser.parse(source)) else {
+            return XCTFail("Expected paragraph block")
+        }
+        XCTAssertEqual(inlines, [.text("Hello "), .tag("tag"), .text(" world")])
+    }
+
+    func testTagParsesAsStandaloneInline() {
+        let source = "#tag"
+        guard let inlines = firstParagraphInlines(from: parser.parse(source)) else {
+            return XCTFail("Expected paragraph block")
+        }
+        XCTAssertEqual(inlines, [.tag("tag")])
+    }
+
+    func testMultipleTagsParseInSingleParagraph() {
+        let source = "Multiple #tag1 and #tag2 here"
+        guard let inlines = firstParagraphInlines(from: parser.parse(source)) else {
+            return XCTFail("Expected paragraph block")
+        }
+        XCTAssertEqual(inlines, [.text("Multiple "), .tag("tag1"), .text(" and "), .tag("tag2"), .text(" here")])
+    }
+
+    func testTagParsesBeforePunctuation() {
+        let source = "Punctuation #tag,"
+        guard let inlines = firstParagraphInlines(from: parser.parse(source)) else {
+            return XCTFail("Expected paragraph block")
+        }
+        XCTAssertEqual(inlines, [.text("Punctuation "), .tag("tag"), .text(",")])
+    }
+
+    func testTagAllowsHyphenAndUnderscore() {
+        let source = "#my-tag #my_tag"
+        guard let inlines = firstParagraphInlines(from: parser.parse(source)) else {
+            return XCTFail("Expected paragraph block")
+        }
+        XCTAssertEqual(inlines, [.tag("my-tag"), .text(" "), .tag("my_tag")])
+    }
+
+    func testTagParsesInsideListItemParagraph() {
+        let source = "- List item with #tag"
+        let document = parser.parse(source)
+        guard let block = rootBlocks(in: document).first,
+              case .list(_, let items) = block,
+              case .listItem(let firstItem) = items.first,
+              case .paragraph(let inlines) = firstItem.blocks.first else {
+            return XCTFail("Expected first list item paragraph")
+        }
+
+        XCTAssertEqual(inlines, [.text("List item with "), .tag("tag")])
+    }
+
+    func testTagDoesNotParseFromCSharpToken() {
+        let source = "C# is a language"
+        guard let inlines = firstParagraphInlines(from: parser.parse(source)) else {
+            return XCTFail("Expected paragraph block")
+        }
+        XCTAssertEqual(inlines, [.text(source)])
+    }
+
+    func testTagDoesNotParseWhenHashFollowedByDigit() {
+        let source = "#1 is not a tag"
+        guard let inlines = firstParagraphInlines(from: parser.parse(source)) else {
+            return XCTFail("Expected paragraph block")
+        }
+        XCTAssertEqual(inlines, [.text(source)])
+    }
+
+    func testTagDoesNotParseWithoutBoundaryBeforeHash() {
+        let source = "foo#bar"
+        guard let inlines = firstParagraphInlines(from: parser.parse(source)) else {
+            return XCTFail("Expected paragraph block")
+        }
+        XCTAssertEqual(inlines, [.text(source)])
+    }
+
+    func testTagDoesNotParseFromHeadingMarker() {
+        let source = "## Heading"
+        let document = parser.parse(source)
+        guard let block = rootBlocks(in: document).first,
+              case .heading(let level, let inlines) = block else {
+            return XCTFail("Expected heading block")
+        }
+
+        XCTAssertEqual(level, 2)
+        XCTAssertEqual(inlines, [.text("Heading")])
+        XCTAssertFalse(inlines.contains { inline in
+            if case .tag = inline { return true }
+            return false
+        })
+    }
+
+    func testTagDoesNotParseInsideInlineCode() {
+        let source = "`#tag`"
+        guard let inlines = firstParagraphInlines(from: parser.parse(source)) else {
+            return XCTFail("Expected paragraph block")
+        }
+        XCTAssertEqual(inlines, [.inlineCode("#tag")])
+    }
+
+    func testTagDoesNotParseInsideMathBlock() {
+        let source = "$$ #tag $$"
+        let document = parser.parse(source)
+        guard let block = rootBlocks(in: document).first,
+              case .mathBlock(let payload) = block else {
+            return XCTFail("Expected single-line math block")
+        }
+
+        XCTAssertEqual(payload, "#tag")
+    }
+
+    func testTagDoesNotParseInsideLinkLabel() {
+        let source = "[link #tag](https://example.com)"
+        guard let inlines = firstParagraphInlines(from: parser.parse(source)),
+              case .link(let link) = inlines.first else {
+            return XCTFail("Expected link inline")
+        }
+
+        XCTAssertEqual(inlines.count, 1)
+        XCTAssertEqual(link.destination, "https://example.com")
+        XCTAssertEqual(link.children, [.text("link #tag")])
+    }
+
+    func testTagDoesNotParseInsideImageAltText() {
+        let source = "Start ![link #tag](image.png) end"
+        guard let inlines = firstParagraphInlines(from: parser.parse(source)) else {
+            return XCTFail("Expected paragraph block")
+        }
+
+        XCTAssertEqual(
+            inlines,
+            [
+                .text("Start "),
+                .image(MarkdownImage(source: "image.png", alt: "link #tag")),
+                .text(" end"),
+            ]
+        )
+    }
+
+    func testTagDoesNotParseInsideAutolinkURL() {
+        let source = "https://example.com/#tag"
+        guard let inlines = firstParagraphInlines(from: parser.parse(source)),
+              case .link(let link) = inlines.first else {
+            return XCTFail("Expected autolink inline")
+        }
+
+        XCTAssertEqual(inlines.count, 1)
+        XCTAssertEqual(link.destination, source)
+        XCTAssertEqual(link.children, [.text(source)])
+    }
+
+    func testTagParsesInsideEmphasisChildren() {
+        let source = "Wrapped *#tag* text"
+        guard let inlines = firstParagraphInlines(from: parser.parse(source)) else {
+            return XCTFail("Expected paragraph block")
+        }
+
+        XCTAssertEqual(inlines, [.text("Wrapped "), .emphasis([.tag("tag")]), .text(" text")])
+    }
+
+    func testTagDoesNotParseInsideMathInline() {
+        let source = "Math $#tag$ inline"
+        guard let inlines = firstParagraphInlines(from: parser.parse(source)) else {
+            return XCTFail("Expected paragraph block")
+        }
+
+        XCTAssertEqual(inlines, [.text("Math "), .mathInline("#tag"), .text(" inline")])
+    }
+
+    func testTagDoesNotParseInsideFencedCodeBlock() {
+        let source = """
+        ```
+        #tag
+        ```
+        """
+        let document = parser.parse(source)
+        guard let block = rootBlocks(in: document).first,
+              case .codeBlock(let language, let payload) = block else {
+            return XCTFail("Expected fenced code block")
+        }
+
+        XCTAssertNil(language)
+        XCTAssertEqual(payload, "#tag")
+    }
+
     func testStrikethroughProducesInlineNode() {
         let source = "This ~~very *important*~~ text"
         let document = parser.parse(source)
@@ -827,6 +1013,14 @@ final class MarkdownASTParserTests: XCTestCase {
             return blocks
         }
         return []
+    }
+
+    private func firstParagraphInlines(from document: MarkdownDocument) -> [MarkdownInline]? {
+        guard let block = rootBlocks(in: document).first,
+              case .paragraph(let inlines) = block else {
+            return nil
+        }
+        return inlines
     }
 
     private func concatenatedText(_ inlines: [MarkdownInline]) -> String {

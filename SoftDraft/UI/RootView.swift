@@ -11,8 +11,6 @@ import SwiftUI
 struct RootView: View {
 
     @EnvironmentObject private var libraryManager: LibraryManager
-    @EnvironmentObject private var commandRegistry: CommandRegistry
-    @EnvironmentObject private var selection: SelectionModel
 
     var body: some View {
         Group {
@@ -29,10 +27,6 @@ struct RootView: View {
                     libraryURL: url
                 )
             }
-        }
-        .focusable(selection.pendingMove != nil)
-        .onExitCommand {
-            commandRegistry.run("command.cancel")
         }
     }
 }
