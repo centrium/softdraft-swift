@@ -52,6 +52,8 @@ struct SoftdraftApp: App {
                 .environmentObject(commandRegistry)
                 .environmentObject(searchIndex)
         }
+        .windowStyle(.titleBar)
+        .windowToolbarStyle(.unified)
         .commands {
             GlobalCommands(commandRegistry: commandRegistry)
             LibraryCommands(libraryManager: libraryManager)

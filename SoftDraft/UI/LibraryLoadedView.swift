@@ -47,9 +47,32 @@ struct LibraryLoadedView: View {
         return names.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
 
-    private var selectedNoteMarkdown: String? {
-        guard selection.selectedNoteID != nil else { return nil }
+    private var isNoteSelected: Bool {
+        selection.selectedNoteID != nil
+    }
+
+    private var selectedNoteSummary: NoteSummary? {
+        guard let selectedNoteID = selection.selectedNoteID else { return nil }
+        return libraryManager.visibleNotes.first { $0.id == selectedNoteID }
+    }
+
+    private var currentShareContent: String {
+        guard isNoteSelected else { return "" }
+
+        if !libraryManager.currentNoteText.isEmpty {
+            return libraryManager.currentNoteText
+        }
+
+        if let selectedNoteSummary,
+           let markdown = libraryManager.markdownForNote(selectedNoteSummary) {
+            return markdown
+        }
+
         return libraryManager.currentNoteText
+    }
+
+    private var canShareCurrentNote: Bool {
+        isNoteSelected && !currentShareContent.isEmpty
     }
 
     // ─────────────────────────────
@@ -94,10 +117,25 @@ struct LibraryLoadedView: View {
             .help("New Note")
         }
 
+    }
+
+    @ToolbarContentBuilder
+    private var shareToolbar: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
-            MarkdownShareToolbarButton(markdown: selectedNoteMarkdown)
+                ShareLink(item: currentShareContent) {
+                    Image(systemName: "square.and.arrow.up")
+                        .symbolRenderingMode(.monochrome)
+                        .foregroundStyle(.secondary)
+                        .imageScale(.large)
+                }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.circle)
+                .controlSize(.large)
+                .disabled(!canShareCurrentNote)
+                .opacity(canShareCurrentNote ? 1 : 0.45)
                 .help("Share")
-        }
+            }
+        
     }
 
     // ─────────────────────────────
@@ -155,6 +193,9 @@ private extension LibraryLoadedView {
 
             // ⬇️ Editor + Preview layering happens here
             layeredEditor
+                .toolbar {
+                    shareToolbar
+                }
                 .sheet(isPresented: isMoveSheetPresented) {
                     if let pending = selection.pendingMove {
                         MoveNoteSheet(
@@ -207,7 +248,7 @@ private extension LibraryLoadedView {
                 .animation(.easeInOut(duration: 0.25),
                            value: uiState.isPreviewModeEnabled)
                 .focused($editorFocused)
-                .onChange(of: uiState.isPreviewModeEnabled) { isPreview in
+                .onChange(of: uiState.isPreviewModeEnabled) { _, isPreview in
                     if isPreview {
                         editorFocused = false
                     }
