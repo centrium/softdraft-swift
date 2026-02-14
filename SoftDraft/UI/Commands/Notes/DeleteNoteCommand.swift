@@ -9,18 +9,17 @@ let deleteNoteCommand = AppCommand(
     id: "note.delete",
     title: "Delete Note",
     shortcut: KeyboardShortcut(.delete, modifiers: [.command]),
-    isEnabled: { ctx in
-        ctx.libraryURL != nil &&
-        ctx.selection.selectedNoteID != nil &&
-        ctx.selection.selectedCollectionID != nil
+    isEnabled: { ctx, arguments in
+        guard ctx.libraryURL != nil else { return false }
+        return (arguments.noteID ?? ctx.selection.selectedNoteID) != nil
     },
-    perform: { ctx in
+    perform: { ctx, arguments in
         guard
             let libraryURL = ctx.libraryURL,
-            let noteID = ctx.selection.selectedNoteID,
-            let collectionID = ctx.selection.selectedCollectionID
+            let noteID = arguments.noteID ?? ctx.selection.selectedNoteID
         else { return }
 
+        let collectionID = ctx.libraryManager.collectionID(for: noteID)
         await ctx.libraryManager.deleteNote(
             noteID,
             from: collectionID,

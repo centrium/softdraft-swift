@@ -21,6 +21,20 @@ struct LibraryLoadedView: View {
     @State private var imageErrorDismissTask: Task<Void, Never>? = nil
     @FocusState private var editorFocused: Bool
 
+    private func requestEditorFocus() {
+        guard selection.selectedNoteID != nil else {
+            editorFocused = false
+            return
+        }
+
+        editorFocused = false
+        DispatchQueue.main.async {
+            guard uiState.requestedFocusRegion == .editor else { return }
+            guard selection.selectedNoteID != nil else { return }
+            editorFocused = true
+        }
+    }
+
     private var selectedCollection: String {
         selection.selectedCollectionID ?? "Inbox"
     }
@@ -84,13 +98,10 @@ struct LibraryLoadedView: View {
         // Toggle Collections / Tags
         ToolbarItem(placement: .primaryAction) {
             Button {
-                let nextMode: SidebarMode =
-                    uiState.sidebarMode == .collections ? .tags : .collections
-                uiState.sidebarMode = nextMode
-                if nextMode == .collections {
-                    libraryManager.enterCollectionMode()
+                if uiState.sidebarMode == .collections {
+                    commandRegistry.run("sidebar.showTags")
                 } else {
-                    libraryManager.enterTagMode()
+                    commandRegistry.run("sidebar.showCollections")
                 }
             } label: {
                 Image(systemName:
@@ -169,6 +180,35 @@ struct LibraryLoadedView: View {
         .onChange(of: libraryManager.currentNoteText) { _, _ in
             uiState.imageInsertionError = nil
         }
+        .onReceive(uiState.$focusRequestToken.dropFirst()) { _ in
+            guard uiState.requestedFocusRegion == .editor else {
+                editorFocused = false
+                return
+            }
+            guard selection.selectedNoteID != nil else {
+                editorFocused = false
+                return
+            }
+            requestEditorFocus()
+        }
+        .onChange(of: selection.selectedNoteID) { _, newValue in
+            guard newValue != nil else {
+                editorFocused = false
+                return
+            }
+            guard uiState.requestedFocusRegion == .editor else { return }
+            requestEditorFocus()
+        }
+        .onChange(of: selection.selectedCollectionID) { oldValue, newValue in
+            guard oldValue != newValue else { return }
+            guard uiState.noteStateFilter != nil else { return }
+            commandRegistry.run("note.stateFilter.clear")
+        }
+        .onChange(of: editorFocused) { _, isFocused in
+            if isFocused {
+                uiState.activeFocusRegion = .editor
+            }
+        }
     }
 }
 
@@ -203,11 +243,13 @@ private extension LibraryLoadedView {
                             noteCount: 1,
                             collections: moveDestinationCollections,
                             onMove: { destination in
-                                selection.pendingMove = PendingMove(
-                                    noteID: pending.noteID,
-                                    destinationCollection: destination
+                                commandRegistry.run(
+                                    "note.move.confirm",
+                                    arguments: CommandArguments(
+                                        noteID: pending.noteID,
+                                        collectionID: destination
+                                    )
                                 )
-                                commandRegistry.run("note.move.confirm")
                             },
                             onCancel: {
                                 commandRegistry.run("command.cancel")
@@ -247,7 +289,6 @@ private extension LibraryLoadedView {
                 )
                 .animation(.easeInOut(duration: 0.25),
                            value: uiState.isPreviewModeEnabled)
-                .focused($editorFocused)
                 .onChange(of: uiState.isPreviewModeEnabled) { _, isPreview in
                     if isPreview {
                         editorFocused = false
@@ -280,6 +321,7 @@ private extension LibraryLoadedView {
 
             // Editor content
             PersistentEditorHost(noteID: selection.selectedNoteID)
+                .focused($editorFocused)
                 .opacity(selection.selectedNoteID == nil ? 0 : 1)
                 .mask(editorFadeMask)
 

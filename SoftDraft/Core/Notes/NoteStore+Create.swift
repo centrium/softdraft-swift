@@ -59,7 +59,8 @@ extension NoteStore {
             title: safeTitle,
             relativeDir: safeCollection,
             modifiedAt: modified,
-            pinned: false
+            pinned: false,
+            state: .drafting
         )
 
         return (summary, content)

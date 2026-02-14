@@ -12,7 +12,8 @@ enum NoteSummaryFactory {
     static func make(
         libraryURL: URL,
         noteID: String,
-        pinned: Bool = false
+        pinned: Bool = false,
+        state: NoteState = .drafting
     ) throws -> NoteSummary {
         let url = try NotePathResolver.resolve(
             libraryURL: libraryURL,
@@ -23,14 +24,16 @@ enum NoteSummaryFactory {
         return try make(
             fileURL: url,
             collection: collection,
-            pinned: pinned
+            pinned: pinned,
+            state: state
         )
     }
 
     static func make(
         fileURL: URL,
         collection: String,
-        pinned: Bool = false
+        pinned: Bool = false,
+        state: NoteState = .drafting
     ) throws -> NoteSummary {
 
         let attrs = try FileManager.default.attributesOfItem(
@@ -58,7 +61,8 @@ enum NoteSummaryFactory {
             title: title,
             relativeDir: collection,
             modifiedAt: modified,
-            pinned: pinned
+            pinned: pinned,
+            state: state
         )
     }
 }

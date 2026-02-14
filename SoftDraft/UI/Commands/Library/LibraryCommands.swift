@@ -51,44 +51,201 @@ struct LibraryCommands: Commands {
         
         // --------- Collection commands --------
         CommandMenu("Collections") {
-
-            Button("Rename Current Collection") {
-                commandRegistry.run("collection.rename.begin")
+            Button("New Note in Current Collection") {
+                commandRegistry.run("note.createInCollection")
             }
-            .keyboardShortcut("r", modifiers: [.command])
-            .disabled(!commandRegistry.canExecute("collection.rename.begin"))
+            .disabled(!commandRegistry.canExecute("note.createInCollection"))
+
+            Button("Expand Collections List") {
+                commandRegistry.run("collection.list.expand")
+            }
+            .keyboardShortcut(.downArrow, modifiers: [.command, .option])
+            .disabled(!commandRegistry.canExecute("collection.list.expand"))
+
+            Button("Collapse Collections List") {
+                commandRegistry.run("collection.list.collapse")
+            }
+            .keyboardShortcut(.upArrow, modifiers: [.command, .option])
+            .disabled(!commandRegistry.canExecute("collection.list.collapse"))
+
+            Button("Rename Current Collection…") {
+                commandRegistry.run("collection.rename")
+            }
+            .keyboardShortcut("r", modifiers: [.command, .shift])
+            .disabled(!commandRegistry.canExecute("collection.rename"))
             
             Button("Delete Current Collection") {
                 commandRegistry.run("collection.delete")
             }
             .keyboardShortcut(.delete, modifiers: [.command, .shift])
             .disabled(!commandRegistry.canExecute("collection.delete"))
+
+            Button("Reveal Current Collection in Finder") {
+                commandRegistry.run("collection.revealInFinder")
+            }
+            .disabled(!commandRegistry.canExecute("collection.revealInFinder"))
             
         }
 
         // ───────── Note commands ─────────
         CommandMenu("Note") {
-
-            Button("Toggle Pin") {
-                commandRegistry.run("note.togglePin")
-            }
-            .keyboardShortcut("p", modifiers: [.command])
-            .disabled(!commandRegistry.canExecute("note.togglePin"))
-            Button("Move Note") {
+            Button("Move Note…") {
                 commandRegistry.run("note.move")
             }
-            .keyboardShortcut("m", modifiers: [.command])
+            .keyboardShortcut("m", modifiers: [.command, .shift])
             .disabled(!commandRegistry.canExecute("note.move"))
+
+            Button("Pin / Unpin") {
+                commandRegistry.run("note.togglePin")
+            }
+            .keyboardShortcut("p", modifiers: [.command, .shift])
+            .disabled(!commandRegistry.canExecute("note.togglePin"))
+
+            Button("Duplicate Note") {
+                commandRegistry.run("note.duplicate")
+            }
+            .keyboardShortcut("d", modifiers: [.command])
+            .disabled(!commandRegistry.canExecute("note.duplicate"))
+
+            Button("Reveal Note in Finder") {
+                commandRegistry.run("note.revealInFinder")
+            }
+            .disabled(!commandRegistry.canExecute("note.revealInFinder"))
+
+            Menu("State") {
+                let currentState = selectedNoteState
+                Button {
+                    commandRegistry.run("note.state.setDrafting")
+                } label: {
+                    if currentState == .drafting {
+                        Label(NoteState.drafting.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(NoteState.drafting.displayName)
+                    }
+                }
+                .keyboardShortcut("1", modifiers: [.option])
+                .disabled(!commandRegistry.canExecute("note.state.setDrafting"))
+
+                Button {
+                    commandRegistry.run("note.state.setRefining")
+                } label: {
+                    if currentState == .refining {
+                        Label(NoteState.refining.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(NoteState.refining.displayName)
+                    }
+                }
+                .keyboardShortcut("2", modifiers: [.option])
+                .disabled(!commandRegistry.canExecute("note.state.setRefining"))
+
+                Button {
+                    commandRegistry.run("note.state.setFinished")
+                } label: {
+                    if currentState == .finished {
+                        Label(NoteState.finished.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(NoteState.finished.displayName)
+                    }
+                }
+                .keyboardShortcut("3", modifiers: [.option])
+                .disabled(!commandRegistry.canExecute("note.state.setFinished"))
+            }
+
+            Button("Cycle State") {
+                commandRegistry.run("note.state.cycle")
+            }
+            .keyboardShortcut("s", modifiers: [.command, .option])
+            .disabled(!commandRegistry.canExecute("note.state.cycle"))
+
+            Button("Cycle State Filter") {
+                commandRegistry.run("note.stateFilter.cycle")
+            }
+            .keyboardShortcut("f", modifiers: [.command, .option])
+            .disabled(!commandRegistry.canExecute("note.stateFilter.cycle"))
+
+            Button("Show All States") {
+                commandRegistry.run("note.stateFilter.clear")
+            }
+            .disabled(!commandRegistry.canExecute("note.stateFilter.clear"))
+
             Button("Delete Note") {
                 commandRegistry.run("note.delete")
             }
             .keyboardShortcut(.delete, modifiers: [.command])
             .disabled(!commandRegistry.canExecute("note.delete"))
+
             Button("Preview Note") {
                 commandRegistry.run("view.togglePreviewMode")
             }
-            .keyboardShortcut("p", modifiers: [.command, .shift])
+            .keyboardShortcut("p", modifiers: [.command, .option])
             .disabled(!commandRegistry.canExecute("view.togglePreviewMode"))
+        }
+
+        CommandMenu("Navigate") {
+            Button("Focus Sidebar") {
+                if libraryManager.activeLibraryURL != nil {
+                    commandRegistry.run("sidebar.showCollections")
+                }
+            }
+            .keyboardShortcut("c", modifiers: [.command, .option])
+
+            Button("Focus Tags Sidebar") {
+                commandRegistry.run("sidebar.showTags")
+            }
+            .keyboardShortcut("t", modifiers: [.command, .option])
+            .disabled(!commandRegistry.canExecute("sidebar.showTags"))
+
+            Button("Focus Editor") {
+                commandRegistry.run("focus.editor")
+            }
+            .keyboardShortcut("e", modifiers: [.command, .option])
+            .disabled(!commandRegistry.canExecute("focus.editor"))
+
+            Button("Focus Next Region") {
+                commandRegistry.run("focus.cycle.forward")
+            }
+            .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
+
+            Button("Focus Previous Region") {
+                commandRegistry.run("focus.cycle.backward")
+            }
+            .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
+        }
+
+        CommandMenu("Tags") {
+            Button("Show Tagged Notes") {
+                guard let tagID = libraryManager.visibleTag else { return }
+                commandRegistry.run(
+                    "tag.select",
+                    arguments: CommandArguments(tagID: tagID)
+                )
+            }
+            .disabled(
+                !commandRegistry.canExecute(
+                    "tag.select",
+                    arguments: CommandArguments(tagID: libraryManager.visibleTag)
+                )
+            )
+
+            Button("Remove Tag from Selected Note") {
+                guard let tagID = libraryManager.visibleTag else { return }
+                commandRegistry.run(
+                    "tag.removeFromNote",
+                    arguments: CommandArguments(
+                        noteID: nil,
+                        tagID: tagID
+                    )
+                )
+            }
+            .disabled(
+                !commandRegistry.canExecute(
+                    "tag.removeFromNote",
+                    arguments: CommandArguments(
+                        noteID: nil,
+                        tagID: libraryManager.visibleTag
+                    )
+                )
+            )
         }
 
         CommandMenu("Insert") {
@@ -97,6 +254,13 @@ struct LibraryCommands: Commands {
             }
             .disabled(!commandRegistry.canExecute("note.insertImage.fromFile"))
         }
+    }
+
+    private var selectedNoteState: NoteState? {
+        guard let noteID = commandRegistry.context.selection.selectedNoteID else {
+            return nil
+        }
+        return commandRegistry.context.libraryManager.libraryIndex?.notes[noteID]?.state ?? .drafting
     }
 
     private func openLibrary() {

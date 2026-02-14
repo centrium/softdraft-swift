@@ -11,24 +11,31 @@ let confirmMoveNoteCommand = AppCommand(
     id: "note.move.confirm",
     title: "Confirm Move Note",
     shortcut: nil,
-    isEnabled: { ctx in
-        ctx.selection.pendingMove != nil &&
-        ctx.libraryManager.activeLibraryURL != nil
+    isEnabled: { ctx, arguments in
+        let noteID = arguments.noteID ?? ctx.selection.pendingMove?.noteID
+        let destination = arguments.collectionID ?? ctx.selection.pendingMove?.destinationCollection
+        return
+            noteID != nil &&
+            destination != nil &&
+            ctx.libraryManager.activeLibraryURL != nil
     },
-    perform: { ctx in
+    perform: { ctx, arguments in
+        let noteID = arguments.noteID ?? ctx.selection.pendingMove?.noteID
+        let destination = arguments.collectionID ?? ctx.selection.pendingMove?.destinationCollection
+
         guard
-            let pending = ctx.selection.pendingMove,
-            let destination = pending.destinationCollection,
+            let noteID,
+            let destination,
             let libraryURL = ctx.libraryManager.activeLibraryURL
         else {
             return
         }
 
-        let currentCollection = (pending.noteID as NSString).deletingLastPathComponent
+        let currentCollection = (noteID as NSString).deletingLastPathComponent
 
         let selectionPlan: (preferredNextID: String?, affectedVisibleList: Bool)
         if currentCollection != destination {
-            selectionPlan = ctx.libraryManager.prepareSelectionForRemoval(of: pending.noteID)
+            selectionPlan = ctx.libraryManager.prepareSelectionForRemoval(of: noteID)
         } else {
             selectionPlan = (nil, false)
         }
@@ -36,25 +43,25 @@ let confirmMoveNoteCommand = AppCommand(
         // Clear pending state FIRST
         ctx.selection.pendingMove = nil
 
-        ctx.libraryManager.beginInternalWrite(noteID: pending.noteID)
+        ctx.libraryManager.beginInternalWrite(noteID: noteID)
         do {
             let result = try NoteStore.move(
                 libraryURL: libraryURL,
-                noteID: pending.noteID,
+                noteID: noteID,
                 destCollection: destination
             )
             ctx.libraryManager.replaceNoteID(
-                oldID: pending.noteID,
+                oldID: noteID,
                 newID: result
             )
             ctx.libraryManager.suppressEvents(for: result)
         } catch {
-            ctx.libraryManager.endInternalWrite(noteID: pending.noteID)
+            ctx.libraryManager.endInternalWrite(noteID: noteID)
             ctx.uiState.requestNotesListFocus()
             return
         }
 
-        ctx.libraryManager.endInternalWrite(noteID: pending.noteID)
+        ctx.libraryManager.endInternalWrite(noteID: noteID)
 
         ctx.libraryManager.reloadCurrentCollection(
             preferredSelection: selectionPlan.preferredNextID,

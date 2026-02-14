@@ -23,10 +23,14 @@ extension LibraryManager {
             try? JSONDecoder().decode(LibraryIndex.self, from: $0)
         }
 
-        if let index = decodedIndex,
-           LibraryIndexBuilder.isSupportedVersion(index.version) {
-            print("🗂️ LibraryIndex loaded:", index.collections.count, "collections,", index.notes.count, "notes")
-            libraryIndex = index
+        if let decodedIndex,
+           LibraryIndexBuilder.isSupportedVersion(decodedIndex.version) {
+            let stateMigrationNeeded = decodedIndex.notes.values.contains { $0.requiresStateMigration }
+            print("🗂️ LibraryIndex loaded:", decodedIndex.collections.count, "collections,", decodedIndex.notes.count, "notes")
+            libraryIndex = decodedIndex
+            if stateMigrationNeeded {
+                persistLibraryIndex(libraryURL: libraryURL)
+            }
             schedulePinnedMigration(libraryURL: libraryURL)
             return
         }

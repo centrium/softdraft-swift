@@ -27,7 +27,9 @@ struct NoteIndex: Codable {
     let title: String
     let modified: Date
     let pinned: Bool
+    var state: NoteState
     var tags: [String] = []
+    private let didDefaultStateDuringDecode: Bool
 
     init(
         id: String,
@@ -35,6 +37,7 @@ struct NoteIndex: Codable {
         title: String,
         modified: Date,
         pinned: Bool = false,
+        state: NoteState = .drafting,
         tags: [String] = []
     ) {
         self.id = id
@@ -42,7 +45,9 @@ struct NoteIndex: Codable {
         self.title = title
         self.modified = modified
         self.pinned = pinned
+        self.state = state
         self.tags = tags
+        self.didDefaultStateDuringDecode = false
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -51,6 +56,7 @@ struct NoteIndex: Codable {
         case title
         case modified
         case pinned
+        case state
         case tags
     }
 
@@ -61,7 +67,10 @@ struct NoteIndex: Codable {
         title = try container.decode(String.self, forKey: .title)
         modified = try container.decode(Date.self, forKey: .modified)
         pinned = try container.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
+        let hasState = container.contains(.state)
+        state = try container.decodeIfPresent(NoteState.self, forKey: .state) ?? .drafting
         tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
+        didDefaultStateDuringDecode = !hasState
     }
 
     func encode(to encoder: Encoder) throws {
@@ -71,7 +80,12 @@ struct NoteIndex: Codable {
         try container.encode(title, forKey: .title)
         try container.encode(modified, forKey: .modified)
         try container.encode(pinned, forKey: .pinned)
+        try container.encode(state, forKey: .state)
         try container.encode(tags, forKey: .tags)
+    }
+
+    var requiresStateMigration: Bool {
+        didDefaultStateDuringDecode
     }
 }
 

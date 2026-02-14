@@ -10,7 +10,7 @@ import SwiftUI
 let togglePreviewModeCommand = AppCommand(
     id: "view.togglePreviewMode",
     title: "Toggle Preview Mode",
-    shortcut: KeyboardShortcut("p", modifiers: [.command, .shift]),
+    shortcut: KeyboardShortcut("p", modifiers: [.command, .option]),
     isEnabled: { ctx in
         ctx.selection.selectedNoteID != nil
     },

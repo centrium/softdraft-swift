@@ -165,4 +165,30 @@ extension LibraryManager {
         updateVisibleNotes()
         validateSelectionInVisibleNotes()
     }
+
+    func noteState(
+        noteID: String
+    ) -> NoteState {
+        libraryIndex?.notes[noteID]?.state ?? .drafting
+    }
+
+    func setNoteState(
+        noteID: String,
+        state: NoteState
+    ) {
+        guard
+            let libraryURL = activeLibraryURL,
+            let index = libraryIndex
+        else { return }
+        guard index.notes[noteID]?.state != state else { return }
+
+        libraryIndex = LibraryIndexMutator.setState(
+            index: index,
+            noteID: noteID,
+            state: state
+        )
+        persistLibraryIndex(libraryURL: libraryURL)
+        updateVisibleNotes()
+        validateSelectionInVisibleNotes()
+    }
 }

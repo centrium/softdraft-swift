@@ -25,12 +25,18 @@ enum LibraryIndexBuilder {
         ) { partialResult, pair in
             partialResult[pair.key] = pair.value.pinned
         } ?? [:]
+        let existingStateByNoteID = existingIndex?.notes.reduce(
+            into: [String: NoteState]()
+        ) { partialResult, pair in
+            partialResult[pair.key] = pair.value.state
+        } ?? [:]
 
         return await Task.detached(priority: .utility) {
             buildSync(
                 libraryURL: libraryURL,
                 existingLibraryID: existingLibraryID,
-                existingPinnedByNoteID: existingPinnedByNoteID
+                existingPinnedByNoteID: existingPinnedByNoteID,
+                existingStateByNoteID: existingStateByNoteID
             )
         }.value
     }
@@ -46,10 +52,11 @@ enum LibraryIndexBuilder {
         return json["libraryID"] as? String
     }
 
-    private static func buildSync(
+    nonisolated private static func buildSync(
         libraryURL: URL,
         existingLibraryID: String?,
-        existingPinnedByNoteID: [String: Bool]
+        existingPinnedByNoteID: [String: Bool],
+        existingStateByNoteID: [String: NoteState]
     ) -> LibraryIndex {
         let collectionsURL = libraryURL
             .appendingPathComponent(CollectionStore.collectionsDir)
@@ -104,6 +111,7 @@ enum LibraryIndexBuilder {
                 let parsedTags = TagParser.parseTags(from: markdown)
                 let tags = parsedTags.sorted()
                 let existingPinned = existingPinnedByNoteID[noteID] ?? false
+                let existingState = existingStateByNoteID[noteID] ?? .drafting
 
                 for tag in parsedTags {
                     tagFrequencies[tag, default: 0] += 1
@@ -115,6 +123,7 @@ enum LibraryIndexBuilder {
                     title: title,
                     modified: modified,
                     pinned: existingPinned,
+                    state: existingState,
                     tags: tags
                 )
 

@@ -33,6 +33,7 @@ struct NoteEditorView: View {
                 showLineNumbers: false,
             )
         )
+        .lockEmbeddedWebInspectors()
         .onChange(of: text) { _, newValue in
             guard !isLoading else { return }
 

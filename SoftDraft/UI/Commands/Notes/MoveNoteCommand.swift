@@ -10,12 +10,13 @@ import SwiftUI
 let moveNoteCommand = AppCommand(
     id: "note.move",
     title: "Move Note",
-    shortcut: KeyboardShortcut("m", modifiers: [.command]),
-    isEnabled: { ctx in
-        ctx.selection.selectedNoteID != nil
+    shortcut: KeyboardShortcut("m", modifiers: [.command, .shift]),
+    isEnabled: { ctx, arguments in
+        (arguments.noteID ?? ctx.selection.selectedNoteID) != nil
     },
-    perform: { ctx in
-        guard let noteID = ctx.selection.selectedNoteID else { return }
+    perform: { ctx, arguments in
+        guard let noteID = arguments.noteID ?? ctx.selection.selectedNoteID else { return }
+        ctx.selection.selectNote(noteID)
 
         // Phase 1: intent only.
         // This command deliberately does NOT complete the action.

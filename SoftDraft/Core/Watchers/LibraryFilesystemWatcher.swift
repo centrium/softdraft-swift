@@ -46,6 +46,7 @@ final class LibraryFilesystemWatcher {
     private let collectionsURL: URL
     private let debounceInterval: TimeInterval
     private let queue = DispatchQueue(label: "com.softdraft.fs-watcher")
+    private let queueKey = DispatchSpecificKey<Void>()
     private let handler: EventHandler
 
     private var stream: FSEventStreamRef?
@@ -61,6 +62,7 @@ final class LibraryFilesystemWatcher {
         self.collectionsURL = libraryURL.appendingPathComponent("collections")
         self.debounceInterval = debounceInterval
         self.handler = handler
+        self.queue.setSpecific(key: queueKey, value: ())
     }
 
     deinit {
@@ -76,17 +78,23 @@ final class LibraryFilesystemWatcher {
     }
 
     func stop() {
-        queue.sync {
-            pendingWorkItem?.cancel()
-            pendingWorkItem = nil
+        let stopWork = { [self] in
+            self.pendingWorkItem?.cancel()
+            self.pendingWorkItem = nil
 
-            if let stream {
+            if let stream = self.stream {
                 FSEventStreamStop(stream)
                 FSEventStreamInvalidate(stream)
                 FSEventStreamRelease(stream)
             }
-            stream = nil
-            snapshot = .empty
+            self.stream = nil
+            self.snapshot = .empty
+        }
+
+        if DispatchQueue.getSpecific(key: queueKey) != nil {
+            stopWork()
+        } else {
+            queue.sync(execute: stopWork)
         }
     }
 

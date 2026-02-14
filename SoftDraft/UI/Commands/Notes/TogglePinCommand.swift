@@ -10,15 +10,13 @@ import SwiftUI
 let togglePinCommand = AppCommand(
     id: "note.togglePin",
     title: "Toggle Pin",
-    shortcut: KeyboardShortcut("p", modifiers: [.command]),
-    isEnabled: { ctx in
-        ctx.selection.selectedNoteID != nil && ctx.libraryURL != nil
+    shortcut: KeyboardShortcut("p", modifiers: [.command, .shift]),
+    isEnabled: { ctx, arguments in
+        ctx.libraryURL != nil &&
+        (arguments.noteID ?? ctx.selection.selectedNoteID) != nil
     },
-    perform: { ctx in
-        print("Toggle Command being run")
-        guard
-            let noteID = ctx.selection.selectedNoteID
-        else { return }
+    perform: { ctx, arguments in
+        guard let noteID = arguments.noteID ?? ctx.selection.selectedNoteID else { return }
 
         ctx.libraryManager.togglePin(noteID: noteID)
         ctx.libraryManager.reloadCurrentCollection()

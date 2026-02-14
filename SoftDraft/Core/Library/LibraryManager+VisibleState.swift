@@ -36,7 +36,8 @@ extension LibraryManager {
             title: title,
             relativeDir: collectionID,
             modifiedAt: note.modified,
-            pinned: note.pinned
+            pinned: note.pinned,
+            state: note.state
         )
     }
 

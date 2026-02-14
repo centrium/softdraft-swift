@@ -35,16 +35,26 @@ struct NoteRow: View {
             }
 
             Spacer(minLength: 0)
-
-            if showsPinnedIndicator {
-                Image(systemName: "pin.fill")
-                    .font(.system(size: 8, weight: .regular))
-                    .foregroundStyle(.secondary.opacity(0.5))
-                    .padding(.top, 3)
-            }
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 2)
+        .overlay(alignment: .trailing) {
+            ZStack {
+                Circle()
+                    .fill(stateIndicatorColor)
+                    .frame(width: 6, height: 6)
+                    .offset(y: -6)
+
+                if showsPinnedIndicator {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 8, weight: .regular))
+                        .foregroundStyle(.secondary.opacity(0.5))
+                        .offset(y: 5)
+                }
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
     }
 
     private var relativeRecencyText: String {
@@ -79,5 +89,16 @@ struct NoteRow: View {
         }
 
         return isSelected ? min(base + 0.04, 0.92) : base
+    }
+
+    private var stateIndicatorColor: Color {
+        switch note.state {
+        case .drafting:
+            return Color.primary.opacity(0.25)
+        case .refining:
+            return Color.orange.opacity(0.35)
+        case .finished:
+            return Color.green.opacity(0.35)
+        }
     }
 }

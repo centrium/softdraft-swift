@@ -34,8 +34,15 @@ struct NotesListView: View {
     @State private var hoveredSearchResult: String? = nil
     @FocusState private var focusedField: FocusField?
 
+    private var stateFilteredVisibleNotes: [NoteSummary] {
+        NoteStateFiltering.filteredNotes(
+            from: libraryManager.visibleNotes,
+            stateFilter: uiState.noteStateFilter
+        )
+    }
+
     private var sortedVisibleNotes: [NoteSummary] {
-        libraryManager.visibleNotes.sorted { lhs, rhs in
+        stateFilteredVisibleNotes.sorted { lhs, rhs in
             if lhs.pinned != rhs.pinned {
                 return lhs.pinned
             }
@@ -60,6 +67,19 @@ struct NotesListView: View {
 
     private var isSearchActive: Bool {
         !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var stateFilterLabel: String {
+        uiState.noteStateFilter?.displayName ?? "All"
+    }
+
+    private var isStateFilterActive: Bool {
+        uiState.noteStateFilter != nil
+    }
+
+    private var filteredEmptyMessage: String? {
+        guard let state = uiState.noteStateFilter else { return nil }
+        return "No \(state.displayName) notes"
     }
 
     private var modeAccentColor: Color {
@@ -162,17 +182,23 @@ struct NotesListView: View {
                             .listRowInsets(
                                 EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
                             )
-                    } else if libraryManager.visibleNotes.isEmpty {
+                    } else if stateFilteredVisibleNotes.isEmpty {
                         HStack {
                             Spacer()
-                            Button {
-                                commandRegistry.run("note.create")
-                            } label: {
-                                Text("New note")
-                                    .font(.system(size: 13, weight: .medium))
+                            if let filteredEmptyMessage {
+                                Text(filteredEmptyMessage)
+                                    .font(.system(size: 13, weight: .regular))
                                     .foregroundStyle(.secondary)
+                            } else {
+                                Button {
+                                    commandRegistry.run("note.create")
+                                } label: {
+                                    Text("New note")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                             Spacer()
                         }
                         .padding(.vertical, 8)
@@ -205,7 +231,13 @@ struct NotesListView: View {
                             .onTapGesture {
                                 focusedField = .results
                                 guard selection.selectedNoteID != note.id else { return }
-                                selection.selectedNoteID = note.id
+                                commandRegistry.run(
+                                    "note.select",
+                                    arguments: CommandArguments(noteID: note.id)
+                                )
+                            }
+                            .contextMenu {
+                                noteContextMenu(for: note)
                             }
                         }
 
@@ -247,7 +279,13 @@ struct NotesListView: View {
                             .onTapGesture {
                                 focusedField = .results
                                 guard selection.selectedNoteID != note.id else { return }
-                                selection.selectedNoteID = note.id
+                                commandRegistry.run(
+                                    "note.select",
+                                    arguments: CommandArguments(noteID: note.id)
+                                )
+                            }
+                            .contextMenu {
+                                noteContextMenu(for: note)
                             }
                         }
                     }
@@ -308,12 +346,144 @@ struct NotesListView: View {
                     guard isSearchActive else { return }
                     scheduleSearch(for: searchQuery)
                 }
-                .onReceive(uiState.$notesListFocusRequestToken.dropFirst()) { _ in
+                .onReceive(uiState.$focusRequestToken.dropFirst()) { _ in
+                    guard uiState.requestedFocusRegion == .notesList else {
+                        focusedField = nil
+                        return
+                    }
                     focusedField = .results
+                }
+                .onChange(of: focusedField) { _, newValue in
+                    if newValue != nil {
+                        uiState.activeFocusRegion = .notesList
+                    }
                 }
                 .animation(.easeOut(duration: 0.12), value: searchResults)
             }
         }
+    }
+
+    @ViewBuilder
+    private func noteContextMenu(for note: NoteSummary) -> some View {
+        Button("Move to…") {
+            commandRegistry.run(
+                "note.move",
+                arguments: CommandArguments(noteID: note.id)
+            )
+        }
+        .disabled(
+            !commandRegistry.canExecute(
+                "note.move",
+                arguments: CommandArguments(noteID: note.id)
+            )
+        )
+
+        Button(note.pinned ? "Unpin" : "Pin") {
+            commandRegistry.run(
+                "note.togglePin",
+                arguments: CommandArguments(noteID: note.id)
+            )
+        }
+        .disabled(
+            !commandRegistry.canExecute(
+                "note.togglePin",
+                arguments: CommandArguments(noteID: note.id)
+            )
+        )
+
+        Menu("State") {
+            let currentState = note.state
+            ForEach(NoteState.allCases, id: \.self) { state in
+                Button {
+                    commandRegistry.run(
+                        "note.setState",
+                        arguments: CommandArguments(
+                            noteID: note.id,
+                            noteState: state
+                        )
+                    )
+                } label: {
+                    if currentState == state {
+                        Label(state.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(state.displayName)
+                    }
+                }
+                .disabled(
+                    !commandRegistry.canExecute(
+                        "note.setState",
+                        arguments: CommandArguments(
+                            noteID: note.id,
+                            noteState: state
+                        )
+                    )
+                )
+
+                Button("Filter by This State") {
+                    commandRegistry.run(
+                        "note.stateFilter.set",
+                        arguments: CommandArguments(noteState: state)
+                    )
+                }
+                .disabled(
+                    !commandRegistry.canExecute(
+                        "note.stateFilter.set",
+                        arguments: CommandArguments(noteState: state)
+                    )
+                )
+
+                if state != NoteState.allCases.last {
+                    Divider()
+                }
+            }
+
+            if isStateFilterActive {
+                Divider()
+                Button("Show All States") {
+                    commandRegistry.run("note.stateFilter.clear")
+                }
+                .disabled(!commandRegistry.canExecute("note.stateFilter.clear"))
+            }
+        }
+
+        Button("Duplicate") {
+            commandRegistry.run(
+                "note.duplicate",
+                arguments: CommandArguments(noteID: note.id)
+            )
+        }
+        .disabled(
+            !commandRegistry.canExecute(
+                "note.duplicate",
+                arguments: CommandArguments(noteID: note.id)
+            )
+        )
+
+        Button("Reveal in Finder") {
+            commandRegistry.run(
+                "note.revealInFinder",
+                arguments: CommandArguments(noteID: note.id)
+            )
+        }
+        .disabled(
+            !commandRegistry.canExecute(
+                "note.revealInFinder",
+                arguments: CommandArguments(noteID: note.id)
+            )
+        )
+
+        Button("Delete", role: .destructive) {
+            commandRegistry.run(
+                "note.delete",
+                arguments: CommandArguments(noteID: note.id)
+            )
+        }
+        .disabled(
+            !commandRegistry.canExecute(
+                "note.delete",
+                arguments: CommandArguments(noteID: note.id)
+            )
+        )
     }
 
     private func scheduleSearch(for query: String) {
@@ -366,7 +536,11 @@ struct NotesListView: View {
     }
 
     private func openSearchResult(_ id: String) {
-        selection.selectedNoteID = id
+        commandRegistry.run(
+            "note.select",
+            arguments: CommandArguments(noteID: id)
+        )
+        commandRegistry.run("focus.editor")
         clearSearch()
     }
 
@@ -427,9 +601,10 @@ struct NotesListView: View {
 
         let target = ids[nextIndex]
         guard target != selection.selectedNoteID else { return }
-        DispatchQueue.main.async {
-            selection.selectedNoteID = target
-        }
+        commandRegistry.run(
+            "note.select",
+            arguments: CommandArguments(noteID: target)
+        )
     }
 
     private func updateHoverState(for id: String, hovering: Bool) {
@@ -450,37 +625,63 @@ struct NotesListView: View {
     }
 
     private var searchField: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 11, weight: .regular))
-                .foregroundStyle(.secondary.opacity(0.65))
+        HStack(spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(.secondary.opacity(0.65))
 
-            TextField("Search notes", text: $searchQuery)
-                .textFieldStyle(.plain)
-                .focused($focusedField, equals: .search)
-                .onChange(of: searchQuery) { _, query in
-                    scheduleSearch(for: query)
+                TextField("Search notes", text: $searchQuery)
+                    .textFieldStyle(.plain)
+                    .focused($focusedField, equals: .search)
+                    .onChange(of: searchQuery) { _, query in
+                        scheduleSearch(for: query)
+                    }
+                    .onSubmit {
+                        if let target = searchSelection ?? displayedSearchResults.first?.id {
+                            openSearchResult(target)
+                        }
+                    }
+                    .onMoveCommand { direction in
+                        handleSearchMoveCommand(direction)
+                    }
+
+                if !searchQuery.isEmpty {
+                    Button {
+                        clearSearch()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary.opacity(0.55))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search")
                 }
-                .onSubmit {
-                    if let target = searchSelection ?? displayedSearchResults.first?.id {
-                        openSearchResult(target)
+            }
+
+            Spacer(minLength: 12)
+
+            Menu {
+                Button("All") {
+                    commandRegistry.run("note.stateFilter.clear")
+                }
+
+                ForEach(NoteState.allCases, id: \.self) { state in
+                    Button(state.displayName) {
+                        commandRegistry.run(
+                            "note.stateFilter.set",
+                            arguments: CommandArguments(noteState: state)
+                        )
                     }
                 }
-                .onMoveCommand { direction in
-                    handleSearchMoveCommand(direction)
-                }
-
-            if !searchQuery.isEmpty {
-                Button {
-                    clearSearch()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary.opacity(0.55))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
+            } label: {
+                Text(stateFilterLabel)
+                .foregroundStyle(.secondary)
+                .opacity(0.85)
             }
+            .menuStyle(.borderlessButton)
+            .buttonStyle(.plain)
+            .accessibilityLabel("State filter")
         }
         .font(.system(size: 13, weight: .regular))
         .padding(.vertical, 5)
@@ -503,7 +704,7 @@ struct NotesListView: View {
         )
         let query = normalisedSearchQuery(searchQuery)
 
-        return searchResults.compactMap { result in
+        let mappedResults: [SearchDisplayResult] = searchResults.compactMap { result in
             guard let note = notesByID[result.id] else { return nil }
 
             return SearchDisplayResult(
@@ -529,6 +730,11 @@ struct NotesListView: View {
             }
             return lhs.note.title.localizedCaseInsensitiveCompare(rhs.note.title) == .orderedAscending
         }
+
+        return NoteStateFiltering.filteredByState(
+            mappedResults,
+            stateFilter: uiState.noteStateFilter
+        ) { $0.note.state }
     }
 
     private func normalisedSearchQuery(_ rawQuery: String) -> String {

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 struct LibraryRailView: View {
 
@@ -15,6 +16,7 @@ struct LibraryRailView: View {
     @EnvironmentObject private var selection: SelectionModel
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var uiState: UIState
+    @EnvironmentObject private var commandRegistry: CommandRegistry
     @State private var tagSelection: String? = nil
     @FocusState private var tagListFocused: Bool
     
@@ -23,6 +25,13 @@ struct LibraryRailView: View {
     }
 
     private let sidebarSlotHeight: CGFloat = 280
+
+    private func requestTagListFocus() {
+        tagListFocused = false
+        DispatchQueue.main.async {
+            tagListFocused = true
+        }
+    }
 
     private func handleTagMoveCommand(_ direction: MoveCommandDirection) {
         let ids = libraryManager.allTagsSorted.map(\.id)
@@ -51,9 +60,10 @@ struct LibraryRailView: View {
         let target = ids[nextIndex]
         guard target != tagSelection else { return }
         tagSelection = target
-        DispatchQueue.main.async {
-            libraryManager.selectTag(target)
-        }
+        commandRegistry.run(
+            "tag.select",
+            arguments: CommandArguments(tagID: target)
+        )
     }
 
     var body: some View {
@@ -112,7 +122,43 @@ struct LibraryRailView: View {
                                 tagListFocused = true
                                 guard tagSelection != item.id else { return }
                                 tagSelection = item.id
-                                libraryManager.selectTag(item.id)
+                                commandRegistry.run(
+                                    "tag.select",
+                                    arguments: CommandArguments(tagID: item.id)
+                                )
+                            }
+                            .contextMenu {
+                                Button("Show Tagged Notes") {
+                                    commandRegistry.run(
+                                        "tag.select",
+                                        arguments: CommandArguments(tagID: item.id)
+                                    )
+                                }
+                                .disabled(
+                                    !commandRegistry.canExecute(
+                                        "tag.select",
+                                        arguments: CommandArguments(tagID: item.id)
+                                    )
+                                )
+
+                                Button("Remove Tag from Selected Note") {
+                                    commandRegistry.run(
+                                        "tag.removeFromNote",
+                                        arguments: CommandArguments(
+                                            noteID: selection.selectedNoteID,
+                                            tagID: item.id
+                                        )
+                                    )
+                                }
+                                .disabled(
+                                    !commandRegistry.canExecute(
+                                        "tag.removeFromNote",
+                                        arguments: CommandArguments(
+                                            noteID: selection.selectedNoteID,
+                                            tagID: item.id
+                                        )
+                                    )
+                                )
                             }
                         }
                     }
@@ -142,6 +188,22 @@ struct LibraryRailView: View {
                     .onChange(of: libraryManager.visibleTag) { _, newValue in
                         tagSelection = newValue
                     }
+                    .onReceive(uiState.$focusRequestToken.dropFirst()) { _ in
+                        guard uiState.requestedFocusRegion == .sidebar else {
+                            tagListFocused = false
+                            return
+                        }
+                        guard uiState.sidebarMode == .tags else {
+                            tagListFocused = false
+                            return
+                        }
+                        requestTagListFocus()
+                    }
+                    .onChange(of: tagListFocused) { _, isFocused in
+                        if isFocused {
+                            uiState.activeFocusRegion = .sidebar
+                        }
+                    }
                 }
 
                 Spacer(minLength: 0)
@@ -156,13 +218,14 @@ struct LibraryRailView: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                     Button {
-                        libraryManager.clearTagSelection()
+                        commandRegistry.run("tag.clearSelection")
                     } label: {
                         Text("Clear")
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(.secondary.opacity(0.7))
                     }
                     .buttonStyle(.plain)
+                    .disabled(!commandRegistry.canExecute("tag.clearSelection"))
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 8)

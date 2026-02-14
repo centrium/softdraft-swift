@@ -31,6 +31,13 @@ final class CommandRegistry: ObservableObject {
         commands[id]?.isEnabled(context) ?? false
     }
 
+    func canExecute(
+        _ id: CommandID,
+        arguments: CommandArguments
+    ) -> Bool {
+        commands[id]?.isEnabled(context, arguments: arguments) ?? false
+    }
+
     func run(_ id: CommandID) {
         guard let command = commands[id],
               command.isEnabled(context)
@@ -41,21 +48,59 @@ final class CommandRegistry: ObservableObject {
         }
     }
 
+    func run(
+        _ id: CommandID,
+        arguments: CommandArguments
+    ) {
+        guard let command = commands[id],
+              command.isEnabled(context, arguments: arguments)
+        else { return }
+
+        Task {
+            await command.perform(context, arguments: arguments)
+        }
+    }
+
     private func registerDefaults() {
+        register(selectNoteCommand)
+        register(setStateCommand)
+        register(cycleNoteStateCommand)
+        register(setNoteStateToDraftingCommand)
+        register(setNoteStateToRefiningCommand)
+        register(setNoteStateToFinishedCommand)
+        register(setNoteStateFilterCommand)
+        register(clearNoteStateFilterCommand)
+        register(cycleNoteStateFilterCommand)
+        register(duplicateNoteCommand)
+        register(revealNoteInFinderCommand)
         register(togglePinCommand)
         register(moveNoteCommand)
         register(confirmMoveNoteCommand)
         register(cancelPendingCommand)
         register(createNoteCommand)
         register(deleteNoteCommand)
+        register(createNoteInCollectionCommand)
         register(createCollectionCommand)
+        register(selectCollectionCommand)
+        register(renameCollectionCommand)
         register(beginRenameCollectionCommand)
         register(confirmRenameCollectionCommand)
         register(cancelRenameCollectionCommand)
         register(deleteCollectionCommand)
+        register(expandCollectionsListCommand)
+        register(collapseCollectionsListCommand)
+        register(revealCollectionInFinderCommand)
+        register(selectTagCommand)
+        register(removeTagFromNoteCommand)
+        register(clearTagSelectionCommand)
         register(rebuildLibraryIndexCommand)
         register(toggleZenModeCommand)
         register(togglePreviewModeCommand)
+        register(showCollectionsSidebarCommand)
+        register(showTagsSidebarCommand)
+        register(focusEditorCommand)
+        register(cycleFocusForwardCommand)
+        register(cycleFocusBackwardCommand)
         register(insertImageFromFileCommand)
         register(handlePasteCommand)
         // others come later
@@ -81,6 +126,36 @@ final class CommandRegistry: ObservableObject {
             .store(in: &cancellables)
 
         context.selection.$pendingMove
+            .sink { [weak self] _ in
+                self?.scheduleContextChange()
+            }
+            .store(in: &cancellables)
+
+        context.selection.$pendingCollectionRename
+            .sink { [weak self] _ in
+                self?.scheduleContextChange()
+            }
+            .store(in: &cancellables)
+
+        context.uiState.$sidebarMode
+            .sink { [weak self] _ in
+                self?.scheduleContextChange()
+            }
+            .store(in: &cancellables)
+
+        context.uiState.$isCollectionsListExpanded
+            .sink { [weak self] _ in
+                self?.scheduleContextChange()
+            }
+            .store(in: &cancellables)
+
+        context.uiState.$activeFocusRegion
+            .sink { [weak self] _ in
+                self?.scheduleContextChange()
+            }
+            .store(in: &cancellables)
+
+        context.uiState.$noteStateFilter
             .sink { [weak self] _ in
                 self?.scheduleContextChange()
             }

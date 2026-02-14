@@ -101,7 +101,7 @@ final class LibraryIndexMutationTests: XCTestCase {
         assertInvariants(updated)
     }
 
-    func testRenameNotePreservesPinned() {
+    func testRenameNotePreservesPinnedAndState() {
         let initial = makeIndex(
             collections: [
                 "Inbox": CollectionIndex(
@@ -113,7 +113,8 @@ final class LibraryIndexMutationTests: XCTestCase {
                 "Inbox/old.md": makeNote(
                     id: "Inbox/old.md",
                     title: "Title",
-                    pinned: true
+                    pinned: true,
+                    state: .refining
                 )
             ]
         )
@@ -125,6 +126,7 @@ final class LibraryIndexMutationTests: XCTestCase {
         )
 
         XCTAssertEqual(updated.notes["Inbox/new.md"]?.pinned, true)
+        XCTAssertEqual(updated.notes["Inbox/new.md"]?.state, .refining)
         assertInvariants(updated)
     }
 
@@ -168,7 +170,7 @@ final class LibraryIndexMutationTests: XCTestCase {
         assertInvariants(updated)
     }
 
-    func testMoveNotePreservesPinned() {
+    func testMoveNotePreservesPinnedAndState() {
         let initial = makeIndex(
             collections: [
                 "Inbox": CollectionIndex(
@@ -184,7 +186,8 @@ final class LibraryIndexMutationTests: XCTestCase {
                 "Inbox/old.md": makeNote(
                     id: "Inbox/old.md",
                     title: "Title",
-                    pinned: true
+                    pinned: true,
+                    state: .finished
                 )
             ]
         )
@@ -196,6 +199,7 @@ final class LibraryIndexMutationTests: XCTestCase {
         )
 
         XCTAssertEqual(updated.notes["Ideas/new.md"]?.pinned, true)
+        XCTAssertEqual(updated.notes["Ideas/new.md"]?.state, .finished)
         assertInvariants(updated, allowEmptyCollections: ["Inbox"])
     }
 
@@ -259,7 +263,7 @@ final class LibraryIndexMutationTests: XCTestCase {
         assertInvariants(updated)
     }
 
-    func testRenameCollectionPreservesPinned() {
+    func testRenameCollectionPreservesPinnedAndState() {
         let initial = makeIndex(
             collections: [
                 "Old": CollectionIndex(
@@ -268,8 +272,8 @@ final class LibraryIndexMutationTests: XCTestCase {
                 )
             ],
             notes: [
-                "Old/a.md": makeNote(id: "Old/a.md", title: "A", pinned: true),
-                "Old/b.md": makeNote(id: "Old/b.md", title: "B", pinned: false)
+                "Old/a.md": makeNote(id: "Old/a.md", title: "A", pinned: true, state: .refining),
+                "Old/b.md": makeNote(id: "Old/b.md", title: "B", pinned: false, state: .drafting)
             ]
         )
 
@@ -281,6 +285,8 @@ final class LibraryIndexMutationTests: XCTestCase {
 
         XCTAssertEqual(updated.notes["New/a.md"]?.pinned, true)
         XCTAssertEqual(updated.notes["New/b.md"]?.pinned, false)
+        XCTAssertEqual(updated.notes["New/a.md"]?.state, .refining)
+        XCTAssertEqual(updated.notes["New/b.md"]?.state, .drafting)
         assertInvariants(updated)
     }
 
@@ -365,14 +371,16 @@ final class LibraryIndexMutationTests: XCTestCase {
         id: String,
         title: String,
         modified: Date = Date(timeIntervalSince1970: 100),
-        pinned: Bool = false
+        pinned: Bool = false,
+        state: NoteState = .drafting
     ) -> NoteIndex {
         NoteIndex(
             id: id,
             path: id,
             title: title,
             modified: modified,
-            pinned: pinned
+            pinned: pinned,
+            state: state
         )
     }
 

@@ -45,7 +45,8 @@ enum LibraryIndexMutator {
             path: noteID,
             title: title,
             modified: Date(),
-            pinned: false
+            pinned: false,
+            state: .drafting
         )
 
         if !(next.collections[collectionID]?.noteIDs.contains(noteID) ?? false) {
@@ -167,6 +168,7 @@ enum LibraryIndexMutator {
                     title: oldNote.title,
                     modified: Date(),
                     pinned: oldNote.pinned,
+                    state: oldNote.state,
                     tags: oldNote.tags
                 )
                 next.notes[newNoteID] = updatedNote
@@ -246,6 +248,7 @@ enum LibraryIndexMutator {
                 title: filesystemData.title ?? parsedTitle ?? existing.title,
                 modified: filesystemData.modified ?? existing.modified,
                 pinned: existing.pinned,
+                state: existing.state,
                 tags: sortedTags
             )
             next.notes[noteID] = updated
@@ -261,6 +264,7 @@ enum LibraryIndexMutator {
             title: title,
             modified: modified,
             pinned: false,
+            state: .drafting,
             tags: sortedTags
         )
 
@@ -280,6 +284,7 @@ enum LibraryIndexMutator {
             title: existing.title,
             modified: existing.modified,
             pinned: !existing.pinned,
+            state: existing.state,
             tags: existing.tags
         )
 
@@ -302,6 +307,30 @@ enum LibraryIndexMutator {
             title: existing.title,
             modified: existing.modified,
             pinned: pinned,
+            state: existing.state,
+            tags: existing.tags
+        )
+
+        next.lastUpdated = Date()
+        return next
+    }
+
+    static func setState(
+        index: LibraryIndex,
+        noteID: String,
+        state: NoteState
+    ) -> LibraryIndex {
+        var next = index
+        guard let existing = next.notes[noteID] else { return next }
+        guard existing.state != state else { return next }
+
+        next.notes[noteID] = NoteIndex(
+            id: existing.id,
+            path: existing.path,
+            title: existing.title,
+            modified: existing.modified,
+            pinned: existing.pinned,
+            state: state,
             tags: existing.tags
         )
 

@@ -14,4 +14,5 @@ struct NoteSummary: Equatable {
     let relativeDir: String
     let modifiedAt: Date
     let pinned: Bool
+    let state: NoteState
 }

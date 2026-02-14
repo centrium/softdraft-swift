@@ -12,20 +12,22 @@ let deleteCollectionCommand = AppCommand(
     id: "collection.delete",
     title: "Delete Collection",
     shortcut: KeyboardShortcut(.delete, modifiers: [.command]),
-    isEnabled: { ctx in
+    isEnabled: { ctx, arguments in
         guard
-            let collectionID = ctx.selection.selectedCollectionID
+            let collectionID = arguments.collectionID ?? ctx.selection.selectedCollectionID
         else { return false }
 
         return
             ctx.libraryURL != nil &&
             ctx.libraryManager.canRenameCollection(collectionID)
     },
-    perform: { ctx in
+    perform: { ctx, arguments in
         guard
             let libraryURL = ctx.libraryURL,
-            let collectionID = ctx.selection.selectedCollectionID
+            let collectionID = arguments.collectionID ?? ctx.selection.selectedCollectionID
         else { return }
+
+        ctx.selection.selectCollection(collectionID)
 
         // If empty, delete immediately
         if !ctx.libraryManager.collectionHasNotes(collectionID, libraryURL: libraryURL) {

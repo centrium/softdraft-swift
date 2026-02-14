@@ -11,7 +11,7 @@ import XCTest
 
 final class LibraryIndexReconcilerTests: XCTestCase {
 
-    func testModifiedPreservesPinnedAndUpdatesTitle() async {
+    func testModifiedPreservesPinnedAndStateAndUpdatesTitle() async {
         let noteID = "Inbox/pinned.md"
         let initial = makeIndex(
             collections: [
@@ -22,7 +22,8 @@ final class LibraryIndexReconcilerTests: XCTestCase {
                     id: noteID,
                     title: "Custom Title",
                     modified: Date(timeIntervalSince1970: 100),
-                    pinned: true
+                    pinned: true,
+                    state: .refining
                 )
             ]
         )
@@ -39,6 +40,7 @@ final class LibraryIndexReconcilerTests: XCTestCase {
 
         XCTAssertTrue(result.changed)
         XCTAssertEqual(result.index.notes[noteID]?.pinned, true)
+        XCTAssertEqual(result.index.notes[noteID]?.state, .refining)
         XCTAssertEqual(result.index.notes[noteID]?.title, "pinned")
         XCTAssertEqual(
             result.index.notes[noteID]?.modified,
@@ -46,7 +48,7 @@ final class LibraryIndexReconcilerTests: XCTestCase {
         )
     }
 
-    func testRenamePreservesPinned() async {
+    func testRenamePreservesPinnedAndState() async {
         let oldID = "Inbox/old.md"
         let newID = "Inbox/new.md"
 
@@ -59,7 +61,8 @@ final class LibraryIndexReconcilerTests: XCTestCase {
                     id: oldID,
                     title: "Old",
                     modified: Date(timeIntervalSince1970: 100),
-                    pinned: true
+                    pinned: true,
+                    state: .finished
                 )
             ]
         )
@@ -76,11 +79,12 @@ final class LibraryIndexReconcilerTests: XCTestCase {
 
         XCTAssertNil(result.index.notes[oldID])
         XCTAssertEqual(result.index.notes[newID]?.pinned, true)
+        XCTAssertEqual(result.index.notes[newID]?.state, .finished)
         XCTAssertEqual(result.index.notes[newID]?.title, "new")
         XCTAssertEqual(result.index.collections["Inbox"]?.noteIDs, [newID])
     }
 
-    func testMovePreservesPinned() async {
+    func testMovePreservesPinnedAndState() async {
         let oldID = "Inbox/old.md"
         let newID = "Work/moved.md"
 
@@ -94,7 +98,8 @@ final class LibraryIndexReconcilerTests: XCTestCase {
                     id: oldID,
                     title: "Old",
                     modified: Date(timeIntervalSince1970: 100),
-                    pinned: true
+                    pinned: true,
+                    state: .refining
                 )
             ]
         )
@@ -111,6 +116,7 @@ final class LibraryIndexReconcilerTests: XCTestCase {
 
         XCTAssertNil(result.index.notes[oldID])
         XCTAssertEqual(result.index.notes[newID]?.pinned, true)
+        XCTAssertEqual(result.index.notes[newID]?.state, .refining)
         XCTAssertEqual(result.index.collections["Work"]?.noteIDs, [newID])
         XCTAssertEqual(result.index.collections["Inbox"]?.noteIDs, [])
     }
@@ -173,7 +179,8 @@ final class LibraryIndexReconcilerTests: XCTestCase {
                     id: noteID,
                     title: "Pinned Title",
                     modified: Date(timeIntervalSince1970: 100),
-                    pinned: true
+                    pinned: true,
+                    state: .finished
                 )
             ]
         )
@@ -196,6 +203,7 @@ final class LibraryIndexReconcilerTests: XCTestCase {
 
         XCTAssertTrue(result.changed)
         XCTAssertEqual(result.index.notes[noteID]?.pinned, true)
+        XCTAssertEqual(result.index.notes[noteID]?.state, .finished)
         XCTAssertEqual(result.index.notes[noteID]?.title, "Pinned Title")
         XCTAssertEqual(
             result.index.notes[noteID]?.modified,
@@ -203,7 +211,7 @@ final class LibraryIndexReconcilerTests: XCTestCase {
         )
     }
 
-    func testCatchUpRenamePreservesPinnedWhenFilenameChanges() {
+    func testCatchUpRenamePreservesPinnedAndStateWhenFilenameChanges() {
         let oldID = "Inbox/old.md"
         let newID = "Inbox/new-name.md"
 
@@ -216,7 +224,8 @@ final class LibraryIndexReconcilerTests: XCTestCase {
                     id: oldID,
                     title: "Old Title",
                     modified: Date(timeIntervalSince1970: 100),
-                    pinned: true
+                    pinned: true,
+                    state: .refining
                 )
             ]
         )
@@ -240,6 +249,7 @@ final class LibraryIndexReconcilerTests: XCTestCase {
         XCTAssertTrue(result.changed)
         XCTAssertNil(result.index.notes[oldID])
         XCTAssertEqual(result.index.notes[newID]?.pinned, true)
+        XCTAssertEqual(result.index.notes[newID]?.state, .refining)
         XCTAssertEqual(result.index.notes[newID]?.title, "new-name")
         XCTAssertEqual(result.index.collections["Inbox"]?.noteIDs, [newID])
     }
@@ -261,14 +271,16 @@ final class LibraryIndexReconcilerTests: XCTestCase {
         id: String,
         title: String,
         modified: Date = Date(timeIntervalSince1970: 100),
-        pinned: Bool = false
+        pinned: Bool = false,
+        state: NoteState = .drafting
     ) -> NoteIndex {
         NoteIndex(
             id: id,
             path: id,
             title: title,
             modified: modified,
-            pinned: pinned
+            pinned: pinned,
+            state: state
         )
     }
 

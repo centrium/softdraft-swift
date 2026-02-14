@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 struct CollectionsSidebar: View {
     let libraryURL: URL
@@ -14,9 +15,9 @@ struct CollectionsSidebar: View {
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var selection: SelectionModel
     @EnvironmentObject private var commandRegistry: CommandRegistry
+    @EnvironmentObject private var uiState: UIState
 
     @State private var listSelection: String? = nil
-    @State private var showAllCollections = false
 
     @FocusState private var renameFieldFocused: Bool
     @FocusState private var sidebarFocused: Bool
@@ -25,6 +26,13 @@ struct CollectionsSidebar: View {
 
     private var isRenaming: Bool {
         selection.pendingCollectionRename != nil
+    }
+
+    private func requestSidebarFocus() {
+        sidebarFocused = false
+        DispatchQueue.main.async {
+            sidebarFocused = true
+        }
     }
     
     private func syncSelectionFromModel() {
@@ -108,7 +116,10 @@ struct CollectionsSidebar: View {
         let target = ids[nextIndex]
         guard target != current else { return }
         DispatchQueue.main.async {
-            selection.selectCollection(target)
+            commandRegistry.run(
+                "collection.select",
+                arguments: CommandArguments(collectionID: target)
+            )
             listSelection = target
             scheduleScrollToSelection(using: proxy, animated: true)
         }
@@ -125,7 +136,7 @@ struct CollectionsSidebar: View {
     private var visibleCollections: [String] {
         let all = orderedCollections
 
-        if showAllCollections {
+        if uiState.isCollectionsListExpanded {
             return all
         }
 
@@ -188,12 +199,28 @@ struct CollectionsSidebar: View {
                     scheduleScrollToSelection(using: proxy, animated: false)
                 }
             }
-            .onChange(of: showAllCollections) { _, _ in
+            .onChange(of: uiState.isCollectionsListExpanded) { _, _ in
                 scheduleScrollToSelection(using: proxy, animated: true)
             }
             .onAppear {
                 syncSelectionFromModel()
                 scheduleScrollToSelection(using: proxy, animated: false)
+            }
+            .onReceive(uiState.$focusRequestToken.dropFirst()) { _ in
+                guard uiState.requestedFocusRegion == .sidebar else {
+                    sidebarFocused = false
+                    return
+                }
+                guard uiState.sidebarMode == .collections else {
+                    sidebarFocused = false
+                    return
+                }
+                requestSidebarFocus()
+            }
+            .onChange(of: sidebarFocused) { _, isFocused in
+                if isFocused {
+                    uiState.activeFocusRegion = .sidebar
+                }
             }
             .onKeyPress(.return) {
                 guard
@@ -238,9 +265,15 @@ struct CollectionsSidebar: View {
                     view.onTapGesture {
                         sidebarFocused = true
                         guard selection.selectedCollectionID != "Inbox" else { return }
-                        selection.selectCollection("Inbox")
+                        commandRegistry.run(
+                            "collection.select",
+                            arguments: CommandArguments(collectionID: "Inbox")
+                        )
                         listSelection = "Inbox"
                     }
+                }
+                .contextMenu {
+                    collectionContextMenu(for: "Inbox")
                 }
             }
 
@@ -256,9 +289,15 @@ struct CollectionsSidebar: View {
                         view.onTapGesture {
                             sidebarFocused = true
                             guard selection.selectedCollectionID != name else { return }
-                            selection.selectCollection(name)
+                            commandRegistry.run(
+                                "collection.select",
+                                arguments: CommandArguments(collectionID: name)
+                            )
                             listSelection = name
                         }
+                    }
+                    .contextMenu {
+                        collectionContextMenu(for: name)
                     }
             }
 
@@ -266,16 +305,25 @@ struct CollectionsSidebar: View {
             if orderedCollections.count > collapsedLimit {
                 Button {
                     withAnimation(.easeOut(duration: 0.2)) {
-                        showAllCollections.toggle()
+                        if uiState.isCollectionsListExpanded {
+                            commandRegistry.run("collection.list.collapse")
+                        } else {
+                            commandRegistry.run("collection.list.expand")
+                        }
                     }
                 } label: {
                     SidebarRow {
-                        Text(showAllCollections ? "Show less" : "Show more")
+                        Text(uiState.isCollectionsListExpanded ? "Show less" : "Show more")
                             .font(.system(size: 12, weight: .regular))
                             .foregroundStyle(.secondary)
                     }
                 }
                 .buttonStyle(.plain)
+                .disabled(
+                    uiState.isCollectionsListExpanded
+                    ? !commandRegistry.canExecute("collection.list.collapse")
+                    : !commandRegistry.canExecute("collection.list.expand")
+                )
                 .listRowSeparator(.hidden)
                 .listRowInsets(
                     EdgeInsets(top: 4, leading: 4, bottom: 6, trailing: 4)
@@ -340,6 +388,61 @@ struct CollectionsSidebar: View {
             .onTapGesture { renameFieldFocused = true }
             .onSubmit { commandRegistry.run("collection.rename.confirm") }
             .onExitCommand { commandRegistry.run("collection.rename.cancel") }
+    }
+
+    @ViewBuilder
+    private func collectionContextMenu(for name: String) -> some View {
+        Button("New Note") {
+            commandRegistry.run(
+                "note.createInCollection",
+                arguments: CommandArguments(collectionID: name)
+            )
+        }
+        .disabled(
+            !commandRegistry.canExecute(
+                "note.createInCollection",
+                arguments: CommandArguments(collectionID: name)
+            )
+        )
+
+        Button("Rename Collection") {
+            commandRegistry.run(
+                "collection.rename",
+                arguments: CommandArguments(collectionID: name)
+            )
+        }
+        .disabled(
+            !commandRegistry.canExecute(
+                "collection.rename",
+                arguments: CommandArguments(collectionID: name)
+            )
+        )
+
+        Button("Delete Collection", role: .destructive) {
+            commandRegistry.run(
+                "collection.delete",
+                arguments: CommandArguments(collectionID: name)
+            )
+        }
+        .disabled(
+            !commandRegistry.canExecute(
+                "collection.delete",
+                arguments: CommandArguments(collectionID: name)
+            )
+        )
+
+        Button("Reveal in Finder") {
+            commandRegistry.run(
+                "collection.revealInFinder",
+                arguments: CommandArguments(collectionID: name)
+            )
+        }
+        .disabled(
+            !commandRegistry.canExecute(
+                "collection.revealInFinder",
+                arguments: CommandArguments(collectionID: name)
+            )
+        )
     }
 }
 

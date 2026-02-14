@@ -32,6 +32,7 @@ struct PersistentEditorHost: View {
                 showLineNumbers: false
             )
         )
+        .lockEmbeddedWebInspectors()
 
         // ───────── Text change → autosave ─────────
         .onChange(of: text) { _, newValue in
