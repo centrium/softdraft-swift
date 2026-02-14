@@ -42,11 +42,7 @@ struct EmptyLibraryView: View {
 
         if panel.runModal() == .OK, let url = panel.url {
             Task {
-                do {
-                    try await libraryManager.setActiveLibrary(url)
-                } catch {
-                    self.error = error.localizedDescription
-                }
+                await libraryManager.setActiveLibrary(url)
             }
         }
     }

@@ -77,7 +77,7 @@ struct NoteEditorView: View {
             return
         }
 
-        await applyLoadedText(loaded)
+        applyLoadedText(loaded)
         await MainActor.run {
             observedExternalToken = libraryManager.externalChangeTokens[noteID]
             hasPendingEdits = false

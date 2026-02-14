@@ -21,6 +21,6 @@ extension LibraryManager {
             .appendingPathComponent(note.relativeDir)
             .appendingPathComponent(fileName)
 
-        return try? String(contentsOf: noteURL)
+        return try? String(contentsOf: noteURL, encoding: .utf8)
     }
 }

@@ -21,12 +21,12 @@ struct GlobalCommands: Commands {
 
         CommandGroup(replacing: .pasteboard) {
             Button("Cut") {
-                Task { await EditorTextInsertion.cut() }
+                Task { EditorTextInsertion.cut() }
             }
             .keyboardShortcut("x", modifiers: [.command])
 
             Button("Copy") {
-                Task { await EditorTextInsertion.copy() }
+                Task { EditorTextInsertion.copy() }
             }
             .keyboardShortcut("c", modifiers: [.command])
 
@@ -36,7 +36,7 @@ struct GlobalCommands: Commands {
             .keyboardShortcut("v", modifiers: [.command])
 
             Button("Select All") {
-                Task { await EditorTextInsertion.selectAll() }
+                Task { EditorTextInsertion.selectAll() }
             }
             .keyboardShortcut("a", modifiers: [.command])
         }

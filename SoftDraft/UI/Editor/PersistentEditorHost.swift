@@ -146,7 +146,7 @@ struct PersistentEditorHost: View {
 
         var didRename = false
 
-        await libraryManager.beginInternalWrite(noteID: noteID)
+        libraryManager.beginInternalWrite(noteID: noteID)
 
         do {
             // 1️⃣ Save content
@@ -185,11 +185,11 @@ struct PersistentEditorHost: View {
             }
 
         } catch {
-            await libraryManager.endInternalWrite(noteID: noteID)
+            libraryManager.endInternalWrite(noteID: noteID)
             return
         }
 
-        await libraryManager.endInternalWrite(
+        libraryManager.endInternalWrite(
             noteID: currentNoteID ?? noteID
         )
 
