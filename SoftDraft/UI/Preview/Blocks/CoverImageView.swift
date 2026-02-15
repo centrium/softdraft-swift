@@ -61,7 +61,7 @@ struct CoverImageView: View {
 
     @ViewBuilder
     private func remoteImageView(url: URL) -> some View {
-        AsyncImage(url: url, transaction: Transaction(animation: .easeInOut(duration: 0.35))) { phase in
+        AsyncImage(url: url) { phase in
             switch phase {
             case .success(let image):
                 heroView(image)
@@ -91,11 +91,10 @@ struct CoverImageView: View {
             .clipped()
             .overlay(gradientOverlay)
             .contentShape(Rectangle())
-            .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 
     private var gradientOverlay: some View {
-        let background = Color(nsColor: .textBackgroundColor)
+        let background = AppTones.previewSurface(for: colorScheme)
 
         return ZStack(alignment: .bottom) {
             LinearGradient(

@@ -427,7 +427,7 @@ final class CommandInteractionTests: XCTestCase {
         XCTAssertEqual(setup.manager.libraryIndex?.notes[noteID]?.state, .finished)
     }
 
-    func testResolveInitialSurfaceUsesStateAndSessionRules() throws {
+    func testResolveInitialSurfaceUsesStateAndSessionRules() async throws {
         let uiState = UIState()
         let sessionState = NotePreviewSessionController()
 

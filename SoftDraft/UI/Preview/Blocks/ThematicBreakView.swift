@@ -20,7 +20,6 @@ struct ThematicBreakView: View {
     }
 
     private var ruleColor: Color {
-        let base = Color(nsColor: .separatorColor)
-        return base.opacity(colorScheme == .dark ? 0.8 : 1)
+        AppTones.subtleDivider(for: colorScheme)
     }
 }

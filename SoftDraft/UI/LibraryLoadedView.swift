@@ -12,6 +12,7 @@ struct LibraryLoadedView: View {
 
     let libraryURL: URL
 
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var selection: SelectionModel
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var commandRegistry: CommandRegistry
@@ -154,11 +155,7 @@ struct LibraryLoadedView: View {
     // Body
     // ─────────────────────────────
     var body: some View {
-        ZStack {
-            normalLayout
-                .transition(.opacity)
-        }
-        .animation(.easeInOut(duration: 0.22), value: uiState.isZenModeEnabled)
+        normalLayout
         .onChange(of: uiState.imageInsertionError) { _, newValue in
             imageErrorDismissTask?.cancel()
             guard let message = newValue, !message.isEmpty else { return }
@@ -335,7 +332,6 @@ private extension LibraryLoadedView {
                     summary: landingSummary
                 )
                 .allowsHitTesting(true)
-                .transition(.opacity)
             }
 
             if uiState.isInsertingImage {
@@ -396,14 +392,20 @@ private extension LibraryLoadedView {
                         .font(AppTypography.secondaryBodyEmphasis)
                 }
                 .padding(12)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .shadow(radius: 8, y: 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(AppTones.raisedSurface(for: colorScheme))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(AppTones.subtleStroke(for: colorScheme), lineWidth: 0.8)
+                )
+                .shadow(color: Color.black.opacity(0.08), radius: 6, y: 2)
             }
             Spacer()
         }
         .padding(.top, 32)
         .padding(.horizontal, 24)
-        .animation(.easeInOut(duration: 0.2), value: uiState.isInsertingImage)
     }
     
     @ViewBuilder
@@ -428,11 +430,11 @@ private extension LibraryLoadedView {
                 .padding(16)
                 .background(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor))
+                        .fill(AppTones.raisedSurface(for: colorScheme))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                        .stroke(AppTones.subtleStroke(for: colorScheme), lineWidth: 0.8)
                 )
                 .shadow(color: Color.black.opacity(0.08), radius: 12, y: 4)
             }

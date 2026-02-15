@@ -12,6 +12,7 @@ import AppKit
 struct BlockImageView: View {
     let image: MarkdownImage
     let libraryURL: URL?
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: 8) {
@@ -82,7 +83,7 @@ struct BlockImageView: View {
 
     private var placeholder: some View {
         RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(Color(nsColor: .controlBackgroundColor))
+            .fill(AppTones.raisedSurface(for: colorScheme))
             .overlay(
                 Image(systemName: "photo")
                     .foregroundStyle(.secondary)

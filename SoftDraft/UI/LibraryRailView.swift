@@ -95,14 +95,18 @@ struct LibraryRailView: View {
                                     .padding(.vertical, 4)
 
                                 Text("#\(item.id)")
-                                    .font(isSelected ? AppTypography.secondaryBodyEmphasis : AppTypography.secondaryBody)
-                                    .foregroundStyle(Color.primary.opacity(0.84))
+                                    .font(AppTypography.secondaryBody)
+                                    .foregroundStyle(
+                                        Color.primary.opacity(
+                                            isSelected ? 0.90 : 0.84
+                                        )
+                                    )
 
                                 Spacer()
 
                                 Text("\(item.count)")
                                     .font(AppTypography.caption)
-                                    .foregroundStyle(Color.secondary.opacity(0.75))
+                                    .foregroundStyle(Color.secondary.opacity(0.72))
                             }
                             .padding(.vertical, 4)
                             .padding(.horizontal, 4)
@@ -110,7 +114,7 @@ struct LibraryRailView: View {
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                                     .fill(
                                         isSelected
-                                        ? Color.primary.opacity(colorScheme == .dark ? 0.07 : 0.05)
+                                        ? AppTones.selectionFill(for: colorScheme)
                                         : .clear
                                     )
                             )
@@ -243,5 +247,6 @@ struct LibraryRailView: View {
             Spacer(minLength: 12)
         }
         .frame(maxHeight: .infinity, alignment: .top)
+        .background(AppTones.sidebarBackground(for: colorScheme))
     }
 }

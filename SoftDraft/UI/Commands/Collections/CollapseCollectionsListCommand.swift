@@ -18,7 +18,9 @@ let collapseCollectionsListCommand = AppCommand(
     perform: { ctx in
         guard ctx.uiState.sidebarMode == .collections else { return }
         guard ctx.uiState.isCollectionsListExpanded else { return }
-        ctx.uiState.isCollectionsListExpanded = false
+        withAnimation(AppMotion.standard) {
+            ctx.uiState.isCollectionsListExpanded = false
+        }
         ctx.uiState.requestFocus(.sidebar)
     }
 )

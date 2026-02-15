@@ -11,7 +11,7 @@ struct BlockMermaidView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     private var surfaceColor: Color {
-        Color(nsColor: .controlBackgroundColor)
+        AppTones.raisedSurface(for: colorScheme)
     }
 
     var body: some View {
@@ -34,7 +34,7 @@ struct BlockMermaidView: View {
                 .padding(.vertical, 4)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color(nsColor: .separatorColor).opacity(0.4))
+                        .fill(AppTones.badgeSurface(for: colorScheme))
                 )
                 .padding(8)
         }
@@ -43,10 +43,8 @@ struct BlockMermaidView: View {
                 .fill(surfaceColor)
         )
         .overlay {
-            if colorScheme == .dark {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color.primary.opacity(0.15), lineWidth: 1)
-            }
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(AppTones.subtleStroke(for: colorScheme), lineWidth: 0.8)
         }
         .padding(.vertical, 16)
     }

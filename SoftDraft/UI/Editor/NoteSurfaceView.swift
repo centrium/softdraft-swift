@@ -25,7 +25,6 @@ struct NoteSurfaceView: View {
 
             if showLoadingAffordance {
                 EditorShellView(showSpinner: true)
-                    .transition(.opacity)
             }
         }
         .onAppear {
@@ -37,10 +36,7 @@ struct NoteSurfaceView: View {
     }
 
     private var editorBackground: Color {
-        if colorScheme == .dark {
-            return Color(red: 0.11, green: 0.11, blue: 0.10)
-        }
-        return Color(red: 0.97, green: 0.96, blue: 0.94)
+        AppTones.editorSurface(for: colorScheme)
     }
 
     private func prepareShell(for noteID: String) {
@@ -61,10 +57,7 @@ struct NoteSurfaceView: View {
 
             await MainActor.run {
                 guard activeNoteID == noteID else { return }
-
-                withAnimation(.easeIn(duration: 0.15)) {
-                    showLoadingAffordance = true
-                }
+                showLoadingAffordance = true
             }
         }
     }
@@ -75,9 +68,7 @@ struct NoteSurfaceView: View {
         shellDebounceTask?.cancel()
         shellDebounceTask = nil
 
-        withAnimation(.easeOut(duration: 0.2)) {
-            showLoadingAffordance = false
-        }
+        showLoadingAffordance = false
     }
 }
 
@@ -87,9 +78,7 @@ struct EditorShellView: View {
 
     var body: some View {
         ZStack {
-            (colorScheme == .dark
-             ? Color(red: 0.11, green: 0.11, blue: 0.10)
-             : Color(red: 0.97, green: 0.96, blue: 0.94))
+            AppTones.editorSurface(for: colorScheme)
                 .opacity(0.9)
 
             if showSpinner {

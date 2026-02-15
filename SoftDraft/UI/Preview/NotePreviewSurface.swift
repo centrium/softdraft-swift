@@ -17,7 +17,7 @@ struct NotePreviewSurface: View {
     
     var body: some View {
         ZStack {
-            Color(nsColor: .textBackgroundColor)
+            AppTones.previewSurface(for: colorScheme)
                 .ignoresSafeArea()
             
             ScrollView {

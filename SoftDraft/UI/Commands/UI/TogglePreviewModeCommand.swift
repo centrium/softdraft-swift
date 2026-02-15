@@ -26,7 +26,7 @@ let togglePreviewModeCommand = AppCommand(
             )
         }
 
-        withAnimation(.easeInOut(duration: 0.16)) {
+        withAnimation(AppMotion.standard) {
             ctx.uiState.setSurface(isEnteringPreview ? .preview : .editor)
         }
     }

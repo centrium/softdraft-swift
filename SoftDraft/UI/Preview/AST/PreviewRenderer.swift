@@ -26,12 +26,11 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
     private let nestingGuideWidth: CGFloat = 1
 
     private var dividerColor: Color {
-        Color(nsColor: .separatorColor)
-            .opacity(colorScheme == .dark ? 0.9 : 1)
+        AppTones.subtleDivider(for: colorScheme)
     }
 
     private var taskListBackground: Color {
-        Color(nsColor: .controlBackgroundColor)
+        AppTones.raisedSurface(for: colorScheme)
     }
 
     // MARK: - List layout
@@ -131,7 +130,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
                 .overlay(alignment: .leading) {
                     Rectangle()
                         .fill(dividerColor)
-                        .frame(width: 4)
+                        .frame(width: 3)
                 }
                 .padding(.bottom, paragraphSpacing)
                 .font(bodyFont)
@@ -384,7 +383,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
     private func nestingGuide(for depth: Int) -> some View {
         if depth > 0 {
             Capsule()
-                .fill(dividerColor.opacity(0.5))
+                .fill(dividerColor.opacity(0.75))
                 .frame(width: nestingGuideWidth)
                 .frame(maxHeight: .infinity)
                 .padding(.vertical, blockSpacing)
@@ -455,7 +454,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
         case .inlineCode(let code):
             var result = AttributedString(code)
             result.font = AppTypography.monospacedBody
-            result.backgroundColor = Color(nsColor: .controlBackgroundColor)
+            result.backgroundColor = AppTones.raisedSurface(for: colorScheme)
             return result
 
         case .strikethrough(let children):
@@ -475,7 +474,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
         case .tag(let name):
             var attr = AttributedString("#\(name)")
             attr.font = AppTypography.bodyEmphasis
-            attr.foregroundColor = Color(red: 0.50, green: 0.39, blue: 0.38)
+            attr.foregroundColor = SidebarAccentPalette.tags.opacity(0.95)
             return attr
 
         default:

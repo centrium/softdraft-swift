@@ -18,7 +18,9 @@ let expandCollectionsListCommand = AppCommand(
     perform: { ctx in
         guard ctx.uiState.sidebarMode == .collections else { return }
         guard !ctx.uiState.isCollectionsListExpanded else { return }
-        ctx.uiState.isCollectionsListExpanded = true
+        withAnimation(AppMotion.standard) {
+            ctx.uiState.isCollectionsListExpanded = true
+        }
         ctx.uiState.requestFocus(.sidebar)
     }
 )

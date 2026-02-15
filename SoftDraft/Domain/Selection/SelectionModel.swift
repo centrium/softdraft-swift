@@ -53,8 +53,15 @@ final class SelectionModel: ObservableObject {
         let previousNoteID = selectedNoteID
         print("Switch note:", previousNoteID ?? "nil", "->", id ?? "nil")
 
-        if let id,
-           let resolveCurrentNoteTextForNoteID,
+        guard let id else {
+            applyCurrentNoteText?("")
+            selectedNoteID = nil
+            applyPreviewMode?(false)
+            print("Preview mode before render:", false)
+            return
+        }
+
+        if let resolveCurrentNoteTextForNoteID,
            let resolvePreviewModeForNoteID,
            let applyCurrentNoteText,
            let applyPreviewMode {
@@ -67,13 +74,11 @@ final class SelectionModel: ObservableObject {
             applyPreviewMode(isPreview)
             print("Preview mode before render:", isPreview)
             return
-        } else {
-            applyCurrentNoteText?("")
-            selectedNoteID = nil
-            applyPreviewMode?(false)
-            print("Preview mode before render:", false)
-            return
         }
+
+        // Allow selection to work in contexts where preview/text resolution
+        // hooks are intentionally not configured (e.g. focused unit tests).
+        selectedNoteID = id
     }
 
     func clearNoteSelection() {

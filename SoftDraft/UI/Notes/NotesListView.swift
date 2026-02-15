@@ -87,7 +87,7 @@ struct NotesListView: View {
     }
 
     private var selectionFill: Color {
-        Color.primary.opacity(colorScheme == .dark ? 0.07 : 0.05)
+        AppTones.selectionFill(for: colorScheme)
     }
 
     private var isAwaitingTagSelection: Bool {
@@ -121,7 +121,6 @@ struct NotesListView: View {
                                 .listRowInsets(
                                     EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
                                 )
-                                .transition(.opacity)
                         } else if searchResults.isEmpty {
                             SearchEmptyState(
                                 query: searchQuery,
@@ -131,7 +130,6 @@ struct NotesListView: View {
                             .listRowInsets(
                                 EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12)
                             )
-                            .transition(.opacity)
                         } else {
                             ForEach(displayedSearchResults) { result in
                                 Button {
@@ -292,6 +290,8 @@ struct NotesListView: View {
                 }
                 .focused($focusedField, equals: .results)
                 .listStyle(.sidebar)
+                .scrollContentBackground(.hidden)
+                .background(AppTones.sidebarBackground(for: colorScheme))
                 .focusable()
                 .focusEffectDisabled()
                 .navigationTitle(contextLabel)
@@ -358,7 +358,6 @@ struct NotesListView: View {
                         uiState.activeFocusRegion = .notesList
                     }
                 }
-                .animation(.easeOut(duration: 0.12), value: searchResults)
             }
         }
     }
@@ -608,10 +607,12 @@ struct NotesListView: View {
     }
 
     private func updateHoverState(for id: String, hovering: Bool) {
-        if hovering {
-            hoveredSearchResult = id
-        } else if hoveredSearchResult == id {
-            hoveredSearchResult = nil
+        withAnimation(AppMotion.standard) {
+            if hovering {
+                hoveredSearchResult = id
+            } else if hoveredSearchResult == id {
+                hoveredSearchResult = nil
+            }
         }
     }
 
@@ -629,7 +630,7 @@ struct NotesListView: View {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .font(AppTypography.caption)
-                    .foregroundStyle(.secondary.opacity(0.65))
+                    .foregroundStyle(.secondary.opacity(0.72))
 
                 TextField("Search notes", text: $searchQuery)
                     .textFieldStyle(.plain)
@@ -652,7 +653,7 @@ struct NotesListView: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(AppTypography.caption)
-                            .foregroundStyle(.secondary.opacity(0.55))
+                            .foregroundStyle(.secondary.opacity(0.62))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Clear search")
@@ -676,8 +677,7 @@ struct NotesListView: View {
                 }
             } label: {
                 Text(stateFilterLabel)
-                .foregroundStyle(.secondary)
-                .opacity(0.85)
+                    .foregroundStyle(.secondary.opacity(0.78))
             }
             .menuStyle(.borderlessButton)
             .buttonStyle(.plain)
@@ -842,12 +842,10 @@ private struct SearchResultRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(note.title)
-                    .font(isSelected ? AppTypography.secondaryBodyEmphasis : AppTypography.secondaryBody)
+                    .font(AppTypography.secondaryBody)
                     .lineLimit(1)
                     .foregroundStyle(
-                        isHovered
-                        ? Color.primary.opacity(0.92)
-                        : Color.primary.opacity(0.82)
+                        Color.primary.opacity(titleOpacity)
                     )
 
                 if let metadataLine, !metadataLine.isEmpty {
@@ -876,6 +874,16 @@ private struct SearchResultRow: View {
             return context
         }
         return nil
+    }
+
+    private var titleOpacity: Double {
+        if isSelected {
+            return 0.90
+        }
+        if isHovered {
+            return 0.88
+        }
+        return 0.82
     }
 }
 

@@ -10,6 +10,7 @@ import SwiftUI
 
 struct RootView: View {
 
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var libraryManager: LibraryManager
 
     var body: some View {
@@ -28,5 +29,6 @@ struct RootView: View {
                 )
             }
         }
+        .background(AppTones.windowBackground(for: colorScheme).ignoresSafeArea())
     }
 }

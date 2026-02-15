@@ -24,7 +24,7 @@ struct NoteRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(note.title)
-                    .font(isSelected ? AppTypography.secondaryBodyEmphasis : AppTypography.secondaryBody)
+                    .font(AppTypography.secondaryBody)
                     .lineLimit(1)
                     .foregroundStyle(Color.primary.opacity(recencyTitleOpacity))
 
@@ -61,7 +61,7 @@ struct NoteRow: View {
     }
 
     private var recencySubtitleOpacity: Double {
-        max(0.48, recencyTitleOpacity - 0.20)
+        max(0.56, recencyTitleOpacity - 0.18)
     }
 
     private static let relativeFormatter: RelativeDateTimeFormatter = {
@@ -76,18 +76,18 @@ struct NoteRow: View {
 
         let base: Double
         if ageHours <= 24 {
-            base = 0.90
+            base = 0.89
         } else if ageHours <= 72 {
-            base = 0.87
+            base = 0.86
         } else if ageHours <= 168 {
-            base = 0.84
+            base = 0.83
         } else if ageHours <= 720 {
-            base = 0.80
+            base = 0.79
         } else {
-            base = 0.76
+            base = 0.75
         }
 
-        return isSelected ? min(base + 0.04, 0.92) : base
+        return isSelected ? min(base + 0.02, 0.90) : base
     }
 
     private var stateIndicatorColor: Color {

@@ -58,7 +58,7 @@ struct CollectionsSidebar: View {
         }
 
         if animated {
-            withAnimation(.easeOut(duration: 0.2)) {
+            withAnimation(AppMotion.standard) {
                 action()
             }
         } else {
@@ -169,6 +169,8 @@ struct CollectionsSidebar: View {
                 }
             }
             .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
+            .background(AppTones.sidebarBackground(for: colorScheme))
             .focusable()
             .focusEffectDisabled()
             .navigationTitle("Collections")
@@ -252,8 +254,8 @@ struct CollectionsSidebar: View {
                         : SidebarAccentPalette.stripOpacity
                 ) {
                     Text("Inbox")
-                        .font(isSelected ? AppTypography.secondaryBodyEmphasis : AppTypography.secondaryBody)
-                        .foregroundStyle(Color.primary.opacity(0.84))
+                        .font(AppTypography.secondaryBody)
+                        .foregroundStyle(Color.primary.opacity(rowLabelOpacity(isSelected: isSelected)))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .id("Inbox")
@@ -304,12 +306,10 @@ struct CollectionsSidebar: View {
             // Show more / less row
             if orderedCollections.count > collapsedLimit {
                 Button {
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        if uiState.isCollectionsListExpanded {
-                            commandRegistry.run("collection.list.collapse")
-                        } else {
-                            commandRegistry.run("collection.list.expand")
-                        }
+                    if uiState.isCollectionsListExpanded {
+                        commandRegistry.run("collection.list.collapse")
+                    } else {
+                        commandRegistry.run("collection.list.expand")
                     }
                 } label: {
                     SidebarRow {
@@ -349,8 +349,8 @@ struct CollectionsSidebar: View {
                     : SidebarAccentPalette.stripOpacity
             ) {
                 Text(name)
-                    .font(isSelected ? AppTypography.secondaryBodyEmphasis : AppTypography.secondaryBody)
-                    .foregroundStyle(Color.primary.opacity(0.84))
+                    .font(AppTypography.secondaryBody)
+                    .foregroundStyle(Color.primary.opacity(rowLabelOpacity(isSelected: isSelected)))
             }
         }
     }
@@ -361,7 +361,7 @@ struct CollectionsSidebar: View {
         RoundedRectangle(cornerRadius: 8, style: .continuous)
             .fill(
                 selection.selectedCollectionID == name
-                ? Color.primary.opacity(colorScheme == .dark ? 0.07 : 0.05)
+                ? AppTones.selectionFill(for: colorScheme)
                 : .clear
             )
     }
@@ -379,9 +379,8 @@ struct CollectionsSidebar: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(
-                        renameFieldFocused
-                        ? Color.primary.opacity(0.2)
-                        : Color.primary.opacity(0.12),
+                        AppTones.subtleStroke(for: colorScheme)
+                            .opacity(renameFieldFocused ? 0.95 : 0.7),
                         lineWidth: 0.7
                     )
             )
@@ -444,6 +443,10 @@ struct CollectionsSidebar: View {
                 arguments: CommandArguments(collectionID: name)
             )
         )
+    }
+
+    private func rowLabelOpacity(isSelected: Bool) -> Double {
+        isSelected ? 0.90 : 0.84
     }
 }
 

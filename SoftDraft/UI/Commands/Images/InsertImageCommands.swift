@@ -79,7 +79,9 @@ private func runImagePipeline(
     let pipeline = ImageInsertionPipeline()
 
     await MainActor.run {
-        context.uiState.isInsertingImage = true
+        withAnimation(AppMotion.standard) {
+            context.uiState.isInsertingImage = true
+        }
         context.uiState.imageInsertionError = nil
     }
 
@@ -93,7 +95,9 @@ private func runImagePipeline(
     }
 
     await MainActor.run {
-        context.uiState.isInsertingImage = false
+        withAnimation(AppMotion.standard) {
+            context.uiState.isInsertingImage = false
+        }
         if !outcome.succeeded, let reason = outcome.failureReason {
             context.uiState.imageInsertionError = reason
         }
