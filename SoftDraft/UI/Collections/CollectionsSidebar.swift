@@ -259,7 +259,7 @@ struct CollectionsSidebar: View {
                 .id("Inbox")
                 .listRowBackground(selectionBackground(for: "Inbox"))
                 .listRowInsets(
-                    EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4)
+                    EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4)
                 )
                 .if(selectionEnabled) { view in
                     view.onTapGesture {
@@ -283,7 +283,7 @@ struct CollectionsSidebar: View {
                     .id(name)
                     .listRowBackground(selectionBackground(for: name))
                     .listRowInsets(
-                        EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4)
+                        EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4)
                     )
                     .if(selectionEnabled) { view in
                         view.onTapGesture {
@@ -326,7 +326,7 @@ struct CollectionsSidebar: View {
                 )
                 .listRowSeparator(.hidden)
                 .listRowInsets(
-                    EdgeInsets(top: 4, leading: 4, bottom: 6, trailing: 4)
+                    EdgeInsets(top: 4, leading: 4, bottom: 8, trailing: 4)
                 )
             }
 
@@ -372,8 +372,8 @@ struct CollectionsSidebar: View {
         TextField("", text: $selection.collectionRenameDraft)
             .textFieldStyle(.plain)
             .focused($renameFieldFocused)
-            .padding(.vertical, 3)
-            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
@@ -469,7 +469,7 @@ struct SidebarRow<Content: View>: View {
                 Rectangle()
                     .fill(accentColor.opacity(accentOpacity))
                     .frame(width: SidebarAccentPalette.stripWidth)
-                    .padding(.vertical, 2)
+                    .padding(.vertical, 4)
             }
             content
             Spacer()

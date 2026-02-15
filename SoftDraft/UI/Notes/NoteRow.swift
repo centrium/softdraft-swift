@@ -16,13 +16,13 @@ struct NoteRow: View {
     var accentOpacity: Double = SidebarAccentPalette.stripOpacity
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             Rectangle()
                 .fill(accentColor.opacity(accentOpacity))
                 .frame(width: SidebarAccentPalette.stripWidth)
-                .padding(.vertical, 2)
+                .padding(.vertical, 4)
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(note.title)
                     .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
                     .lineLimit(1)
@@ -37,21 +37,20 @@ struct NoteRow: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, 4)
-        .padding(.horizontal, 2)
+        .padding(.horizontal, 4)
         .overlay(alignment: .trailing) {
-            ZStack {
+            VStack(spacing: 4) {
                 Circle()
                     .fill(stateIndicatorColor)
-                    .frame(width: 6, height: 6)
-                    .offset(y: -6)
+                    .frame(width: 8, height: 8)
 
                 if showsPinnedIndicator {
                     Image(systemName: "pin.fill")
                         .font(.system(size: 8, weight: .regular))
                         .foregroundStyle(.secondary.opacity(0.5))
-                        .offset(y: 5)
                 }
             }
+            .padding(.trailing, 4)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
         }

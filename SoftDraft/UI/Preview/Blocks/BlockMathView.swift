@@ -25,7 +25,7 @@ struct BlockMathView: View {
                 .lineSpacing(6)
                 .lineLimit(nil)
                 .fixedSize(horizontal: true, vertical: true)
-                .padding(20)
+                .padding(24)
                 .frame(maxWidth: .infinity, alignment: .center)
         }
         .overlay(alignment: .topTrailing) {

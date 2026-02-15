@@ -93,7 +93,7 @@ struct MoveNoteSheet: View {
                 .disabled(moveButtonDisabled)
             }
         }
-        .padding(20)
+        .padding(24)
         .frame(minWidth: 440)
         .onAppear {
             searchFieldFocused = true

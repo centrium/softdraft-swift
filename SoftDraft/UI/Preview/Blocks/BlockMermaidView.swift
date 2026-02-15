@@ -23,7 +23,7 @@ struct BlockMermaidView: View {
                     .lineSpacing(5)
                     .lineLimit(nil)
                     .fixedSize(horizontal: true, vertical: true)
-                    .padding(18)
+                    .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
@@ -48,6 +48,6 @@ struct BlockMermaidView: View {
                     .stroke(Color.primary.opacity(0.15), lineWidth: 1)
             }
         }
-        .padding(.vertical, 14)
+        .padding(.vertical, 16)
     }
 }

@@ -26,8 +26,8 @@ struct CollectionLandingView: View {
                 Spacer(minLength: 0)
                 contentCard
             }
-            .padding(.horizontal, 40)
-            .padding(.vertical, 48)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 32)
         }
     }
 
@@ -53,7 +53,7 @@ struct CollectionLandingView: View {
     }
 
     private var contentCard: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             Text(collectionName)
                 .font(.system(size: 34, weight: .semibold, design: .default))
                 .multilineTextAlignment(.center)
@@ -70,8 +70,8 @@ struct CollectionLandingView: View {
                 .textSelection(.disabled)
         }
         .frame(maxWidth: 460)
-        .padding(.vertical, 30)
-        .padding(.horizontal, 36)
+        .padding(.vertical, 32)
+        .padding(.horizontal, 32)
         .background(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(.ultraThinMaterial)

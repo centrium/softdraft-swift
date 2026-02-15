@@ -149,7 +149,7 @@ struct NotesListView: View {
                                         matchContext: result.hint?.context
                                     )
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .frame(minHeight: 36)
+                                    .frame(minHeight: 32)
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
@@ -162,7 +162,7 @@ struct NotesListView: View {
                                         )
                                 )
                                 .listRowInsets(
-                                    EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4)
+                                    EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4)
                                 )
                                 .listRowSeparator(.hidden)
                                 .onTapGesture {
@@ -216,7 +216,7 @@ struct NotesListView: View {
                                 )
                             )
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .frame(minHeight: 36)
+                            .frame(minHeight: 32)
                             .listRowBackground(
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                                     .fill(
@@ -226,7 +226,7 @@ struct NotesListView: View {
                                     )
                             )
                             .listRowInsets(
-                                EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4)
+                                EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4)
                             )
                             .onTapGesture {
                                 focusedField = .results
@@ -243,7 +243,7 @@ struct NotesListView: View {
 
                         if !pinnedVisibleNotes.isEmpty && !unpinnedVisibleNotes.isEmpty {
                             Color.clear
-                                .frame(height: 6)
+                                .frame(height: 8)
                                 .listRowInsets(
                                     EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
                                 )
@@ -264,7 +264,7 @@ struct NotesListView: View {
                                 )
                             )
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .frame(minHeight: 36)
+                            .frame(minHeight: 32)
                             .listRowBackground(
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                                     .fill(
@@ -274,7 +274,7 @@ struct NotesListView: View {
                                     )
                             )
                             .listRowInsets(
-                                EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4)
+                                EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4)
                             )
                             .onTapGesture {
                                 focusedField = .results
@@ -617,7 +617,7 @@ struct NotesListView: View {
 
     private var listTopSpacing: some View {
         Color.clear
-            .frame(height: 6)
+            .frame(height: 8)
             .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
             .listRowSeparator(.hidden)
             .allowsHitTesting(false)
@@ -626,7 +626,7 @@ struct NotesListView: View {
 
     private var searchField: some View {
         HStack(spacing: 8) {
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 11, weight: .regular))
                     .foregroundStyle(.secondary.opacity(0.65))
@@ -684,10 +684,9 @@ struct NotesListView: View {
             .accessibilityLabel("State filter")
         }
         .font(.system(size: 13, weight: .regular))
-        .padding(.vertical, 5)
-        .padding(.horizontal, 10)
-        .padding(.top, 4)
-        .padding(.bottom, 6)
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
         .onExitCommand {
             if isSearchActive {
                 clearSearch()
@@ -835,13 +834,13 @@ private struct SearchResultRow: View {
     let matchContext: String?
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             Rectangle()
                 .fill(accentColor.opacity(accentOpacity))
                 .frame(width: SidebarAccentPalette.stripWidth)
-                .padding(.vertical, 2)
+                .padding(.vertical, 4)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(note.title)
                     .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
                     .lineLimit(1)
@@ -859,8 +858,8 @@ private struct SearchResultRow: View {
                 }
             }
         }
-        .padding(.vertical, 3)
-        .padding(.horizontal, 2)
+        .padding(.vertical, 4)
+        .padding(.horizontal, 4)
     }
 
     private var metadataLine: String? {
@@ -892,7 +891,7 @@ private struct SearchStatusRow: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
     }
 }
 
@@ -909,7 +908,7 @@ private struct TagSelectionPlaceholder: View {
                     .foregroundStyle(.secondary.opacity(0.82))
                     .multilineTextAlignment(.center)
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 24)
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity)
@@ -923,7 +922,7 @@ private struct SearchEmptyState: View {
 
     var body: some View {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("No matches for \"\(trimmed)\"")
                 .font(.body.weight(.medium))
             Text("Try a different word in \(contextLabel).")
@@ -931,6 +930,6 @@ private struct SearchEmptyState: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
     }
 }

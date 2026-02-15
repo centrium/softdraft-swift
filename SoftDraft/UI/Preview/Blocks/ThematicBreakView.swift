@@ -15,7 +15,7 @@ struct ThematicBreakView: View {
         Rectangle()
             .fill(ruleColor)
             .frame(height: 1)
-            .padding(.vertical, 28)
+            .padding(.vertical, 24)
             .frame(maxWidth: .infinity)
     }
 

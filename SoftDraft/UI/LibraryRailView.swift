@@ -73,7 +73,7 @@ struct LibraryRailView: View {
 
                 if uiState.sidebarMode == .collections {
                     CollectionsSidebar(libraryURL: libraryURL)
-                        .padding(.horizontal, 6)
+                        .padding(.horizontal, 8)
                         .padding(.top, 8)
 
                 } else {
@@ -92,7 +92,7 @@ struct LibraryRailView: View {
                                         )
                                     )
                                     .frame(width: SidebarAccentPalette.stripWidth)
-                                    .padding(.vertical, 2)
+                                    .padding(.vertical, 4)
 
                                 Text("#\(item.id)")
                                     .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
@@ -115,7 +115,7 @@ struct LibraryRailView: View {
                                     )
                             )
                             .listRowInsets(
-                                EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4)
+                                EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4)
                             )
                             .listRowSeparator(.hidden)
                             .onTapGesture {
@@ -236,8 +236,8 @@ struct LibraryRailView: View {
                 libraryURL: libraryURL,
                 collection: selectedCollection
             )
-            .padding(.top, 6)
-            .padding(.horizontal, 6)
+            .padding(.top, 8)
+            .padding(.horizontal, 8)
             .padding(.bottom, 8)
 
             Spacer(minLength: 12)

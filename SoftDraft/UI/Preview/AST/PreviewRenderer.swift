@@ -16,8 +16,8 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
     private let blockSpacing: CGFloat = 12
     private let paragraphSpacing: CGFloat = 8
     private let lineSpacing: CGFloat = 4
-    private let listItemSpacing: CGFloat = 6
-    private let coverSpacing: CGFloat = 28
+    private let listItemSpacing: CGFloat = 8
+    private let coverSpacing: CGFloat = 24
     private let bodyWidth: CGFloat = 680
     private let bodyHorizontalPadding: CGFloat = 24
 
@@ -36,7 +36,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
 
     // MARK: - List layout
 
-    private let markerWidth: CGFloat = 22
+    private let markerWidth: CGFloat = 24
 
     // MARK: - Typography
 
@@ -69,28 +69,16 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
             )
 
         case .thematicBreak:
-            return AnyView(
-                ThematicBreakView()
-                    .padding(.vertical, 4)
-            )
+            return AnyView(ThematicBreakView())
 
         case .codeBlock(let language, let source):
-            return AnyView(
-                BlockCodeView(source: source, language: language)
-                    .padding(.vertical, 2)
-            )
+            return AnyView(BlockCodeView(source: source, language: language))
 
         case .mathBlock(let source):
-            return AnyView(
-                BlockMathView(source: source)
-                    .padding(.vertical, 2)
-            )
+            return AnyView(BlockMathView(source: source))
 
         case .mermaidBlock(let source):
-            return AnyView(
-                BlockMermaidView(source: source)
-                    .padding(.vertical, 2)
-            )
+            return AnyView(BlockMermaidView(source: source))
 
         case .table(let table):
             return renderTable(table)
@@ -148,7 +136,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
                 .overlay(alignment: .leading) {
                     Rectangle()
                         .fill(dividerColor)
-                        .frame(width: 3)
+                        .frame(width: 4)
                 }
                 .padding(.bottom, paragraphSpacing)
                 .font(bodyFont)
@@ -251,7 +239,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
             .font(.system(size: 34, weight: .heavy, design: .default))
             .lineSpacing(lineSpacing + 4)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 2)
+            .padding(.top, 4)
             .padding(.bottom, paragraphSpacing + 16)
 
         return AnyView(content)
@@ -271,7 +259,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
 
                 listMarker(for: entry, index: index, style: style)
                     .frame(width: markerWidth, alignment: .trailing)
-                    .padding(.top, 3)
+                    .padding(.top, 4)
 
                 VStack(alignment: .leading, spacing: listItemSpacing) {
                     switch entry {
@@ -361,7 +349,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
             .multilineTextAlignment(tableTextAlignment(for: columnAlignment))
             .frame(maxWidth: .infinity, alignment: tableFrameAlignment(for: columnAlignment))
             .foregroundStyle(isHeader ? Color.primary : Color.primary)
-            .padding(.vertical, listItemSpacing / 2)
+            .padding(.vertical, 4)
     }
 
     private func tableAlignment(

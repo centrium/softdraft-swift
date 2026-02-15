@@ -14,7 +14,7 @@ struct BlockImageView: View {
     let libraryURL: URL?
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 8) {
 
             // Image
             imageView

@@ -109,6 +109,7 @@ struct LibraryLoadedView: View {
                     ? "tag"
                     : "folder"
                 )
+                // Pixel-nudge for glyph optical alignment in the toolbar.
                 .offset(y: 1)
             }
             .help(
@@ -401,7 +402,7 @@ private extension LibraryLoadedView {
             }
             Spacer()
         }
-        .padding(.top, 40)
+        .padding(.top, 32)
         .padding(.horizontal, 24)
         .animation(.easeInOut(duration: 0.2), value: uiState.isInsertingImage)
     }
@@ -411,12 +412,12 @@ private extension LibraryLoadedView {
         VStack {
             HStack {
                 Spacer()
-                HStack(alignment: .top, spacing: 10) {
+                HStack(alignment: .top, spacing: 12) {
                     Image(systemName: "info.circle")
                         .foregroundStyle(.secondary)
                         .imageScale(.medium)
 
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text("Image couldn’t be inserted")
                             .font(.callout.weight(.semibold))
                         Text(message)
@@ -425,7 +426,7 @@ private extension LibraryLoadedView {
                             .lineLimit(4)
                     }
                 }
-                .padding(14)
+                .padding(16)
                 .background(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(Color(nsColor: .controlBackgroundColor))
@@ -438,7 +439,7 @@ private extension LibraryLoadedView {
             }
             Spacer()
         }
-        .padding(.top, 40)
+        .padding(.top, 32)
         .padding(.horizontal, 24)
     }
 }
@@ -465,6 +466,7 @@ private var editorFadeMask: some View {
             startPoint: .top,
             endPoint: .bottom
         )
+        // Fade geometry control; this is not layout spacing.
         .frame(height: 48)
 
         Rectangle() // fully opaque remainder
