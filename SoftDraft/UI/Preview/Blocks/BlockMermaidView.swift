@@ -18,7 +18,7 @@ struct BlockMermaidView: View {
         ZStack(alignment: .topTrailing) {
             ScrollView(.horizontal) {
                 Text(source)
-                    .font(.system(.body, design: .monospaced))
+                    .font(AppTypography.monospacedBody)
                     .foregroundStyle(Color.primary)
                     .lineSpacing(5)
                     .lineLimit(nil)
@@ -27,8 +27,8 @@ struct BlockMermaidView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            Text("mermaid")
-                .font(.caption2)
+            Text("Mermaid")
+                .font(AppTypography.caption)
                 .foregroundStyle(Color.secondary)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)

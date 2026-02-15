@@ -15,18 +15,22 @@ struct EmptyLibraryView: View {
     var body: some View {
         VStack(spacing: 16) {
             Text("Welcome to Softdraft")
-                .font(.largeTitle)
+                .font(AppTypography.secondaryHeading)
+                .foregroundStyle(.primary.opacity(0.88))
 
             Text("Open or create a library to begin.")
+                .font(AppTypography.secondaryBody)
                 .foregroundStyle(.secondary)
 
             Button("Open Library") {
                 openLibrary()
             }
+            .font(AppTypography.secondaryBodyEmphasis)
             .keyboardShortcut("o", modifiers: [.command])
 
             if let error {
                 Text(error)
+                    .font(AppTypography.caption)
                     .foregroundStyle(.red)
             }
         }

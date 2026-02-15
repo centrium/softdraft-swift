@@ -23,7 +23,7 @@ struct BlockCodeView: View {
         ZStack(alignment: .topTrailing) {
             ScrollView(.horizontal) {
                 Text(source)
-                    .font(.system(.body, design: .monospaced))
+                    .font(AppTypography.monospacedBody)
                     .foregroundStyle(Color.primary)
                     .lineSpacing(4)
                     .lineLimit(nil)
@@ -32,8 +32,8 @@ struct BlockCodeView: View {
             }
 
             if let language, !language.isEmpty {
-                Text(language.uppercased())
-                    .font(.caption2)
+                Text(language)
+                    .font(AppTypography.caption)
                     .foregroundStyle(Color.secondary)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)

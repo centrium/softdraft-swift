@@ -15,7 +15,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
 
     private let blockSpacing: CGFloat = 12
     private let paragraphSpacing: CGFloat = 8
-    private let lineSpacing: CGFloat = 4
+    private let lineSpacing: CGFloat = 5
     private let listItemSpacing: CGFloat = 8
     private let coverSpacing: CGFloat = 24
     private let bodyWidth: CGFloat = 680
@@ -40,15 +40,10 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
 
     // MARK: - Typography
 
-    private let bodyFont = Font.system(size: 17, weight: .regular, design: .default)
+    private let bodyFont = AppTypography.body
 
     private func headingFont(for level: Int) -> Font {
-        switch level {
-        case 1: return .system(size: 24, weight: .semibold, design: .default)
-        case 2: return .system(size: 20, weight: .semibold, design: .default)
-        case 3: return .system(size: 18, weight: .medium, design: .default)
-        default: return .system(size: 17, weight: .medium, design: .default)
-        }
+        AppTypography.previewHeading(for: level)
     }
 
     // MARK: - Block rendering (public entry)
@@ -236,7 +231,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
         }
 
         let content = Text(renderInlineGroup(inlines))
-            .font(.system(size: 34, weight: .heavy, design: .default))
+            .font(AppTypography.primaryTitle)
             .lineSpacing(lineSpacing + 4)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 4)
@@ -343,8 +338,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
         let columnAlignment = tableAlignment(for: column, alignments: alignments)
 
         Text(attributed)
-            .font(bodyFont)
-            .fontWeight(isHeader ? .semibold : .regular)
+            .font(isHeader ? AppTypography.bodyEmphasis : bodyFont)
             .lineSpacing(lineSpacing)
             .multilineTextAlignment(tableTextAlignment(for: columnAlignment))
             .frame(maxWidth: .infinity, alignment: tableFrameAlignment(for: columnAlignment))
@@ -410,7 +404,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
 
         case .taskItem(let item):
             Image(systemName: item.checked ? "checkmark.square" : "square")
-                .font(.system(size: 14))
+                .font(AppTypography.secondaryBody)
                 .foregroundStyle(.secondary)
 
         case .listItem:
@@ -418,13 +412,13 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
 
             case .unordered:
                 Text("•")
-                    .font(.system(size: 15, weight: .regular, design: .default))
+                    .font(bodyFont)
                     .foregroundStyle(.secondary)
 
             case .ordered(let start):
                 let number = start + index
                 Text("\(number).")
-                    .font(.system(size: 15, weight: .regular, design: .default))
+                    .font(bodyFont)
                     .foregroundStyle(.secondary)
             }
         }
@@ -437,7 +431,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
 
         case .mathInline(let source):
             var result = AttributedString(source)
-            result.font = .system(.body, design: .monospaced)
+            result.font = AppTypography.monospacedBody
             return result
 
         case .text(let value):
@@ -460,7 +454,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
 
         case .inlineCode(let code):
             var result = AttributedString(code)
-            result.font = .system(.body, design: .monospaced)
+            result.font = AppTypography.monospacedBody
             result.backgroundColor = Color(nsColor: .controlBackgroundColor)
             return result
 
@@ -480,7 +474,7 @@ struct PreviewRenderer: PreviewBlockRenderer, PreviewInlineRenderer {
             return result
         case .tag(let name):
             var attr = AttributedString("#\(name)")
-            attr.font = .system(.body, weight: .medium)
+            attr.font = AppTypography.bodyEmphasis
             attr.foregroundColor = Color(red: 0.50, green: 0.39, blue: 0.38)
             return attr
 

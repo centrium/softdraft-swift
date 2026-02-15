@@ -29,8 +29,10 @@ struct NoteEditorView: View {
         MarkdownEditorView(
             text: $text,
             configuration: EditorConfiguration(
-                fontFamily: "SoftdraftEditorMono",
-                showLineNumbers: false,
+                fontSize: AppTypography.editorFontSize,
+                fontFamily: AppTypography.editorFontFamily,
+                lineHeight: AppTypography.editorLineHeight,
+                showLineNumbers: false
             )
         )
         .lockEmbeddedWebInspectors()

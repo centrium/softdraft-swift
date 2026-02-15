@@ -55,14 +55,14 @@ struct CollectionLandingView: View {
     private var contentCard: some View {
         VStack(spacing: 12) {
             Text(collectionName)
-                .font(.system(size: 34, weight: .semibold, design: .default))
+                .font(AppTypography.primaryTitle)
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
                 .minimumScaleFactor(0.85)
                 .textSelection(.disabled)
 
             Text(metadataLine)
-                .font(.callout)
+                .font(AppTypography.secondaryBody)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
@@ -83,7 +83,7 @@ struct CollectionLandingView: View {
 
     private var promptText: some View {
         Text(promptLine)
-            .font(.system(size: 20, weight: .medium))
+            .font(AppTypography.secondaryHeading)
             .multilineTextAlignment(.center)
             .padding(.horizontal, 24)
             .foregroundStyle(.white.opacity(colorScheme == .dark ? 0.95 : 0.9))

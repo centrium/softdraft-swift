@@ -95,13 +95,13 @@ struct LibraryRailView: View {
                                     .padding(.vertical, 4)
 
                                 Text("#\(item.id)")
-                                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                                    .font(isSelected ? AppTypography.secondaryBodyEmphasis : AppTypography.secondaryBody)
                                     .foregroundStyle(Color.primary.opacity(0.84))
 
                                 Spacer()
 
                                 Text("\(item.count)")
-                                    .font(.system(size: 11, weight: .regular))
+                                    .font(AppTypography.caption)
                                     .foregroundStyle(Color.secondary.opacity(0.75))
                             }
                             .padding(.vertical, 4)
@@ -214,14 +214,14 @@ struct LibraryRailView: View {
             if let tag = libraryManager.visibleTag {
                 HStack(spacing: 8) {
                     Text("#\(tag)")
-                        .font(.system(size: 12, weight: .regular))
+                        .font(AppTypography.secondaryBody)
                         .foregroundStyle(.secondary)
                     Spacer()
                     Button {
                         commandRegistry.run("tag.clearSelection")
                     } label: {
                         Text("Clear")
-                            .font(.system(size: 11, weight: .regular))
+                            .font(AppTypography.caption)
                             .foregroundStyle(.secondary.opacity(0.7))
                     }
                     .buttonStyle(.plain)

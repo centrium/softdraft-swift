@@ -23,7 +23,7 @@ struct BlockImageView: View {
             // Optional caption (very subtle)
             if let title = image.alt, !title.isEmpty {
                 Text(title)
-                    .font(.caption)
+                    .font(AppTypography.caption)
                     .foregroundStyle(.secondary)
             }
         }

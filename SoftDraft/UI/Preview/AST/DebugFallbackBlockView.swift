@@ -12,7 +12,7 @@ struct DebugFallbackBlockView: View {
 
     var body: some View {
         Text("[Unsupported block: \(String(describing: block))]")
-            .font(.caption.monospaced())
+            .font(AppTypography.monospacedCaption)
             .foregroundStyle(.secondary)
     }
 }

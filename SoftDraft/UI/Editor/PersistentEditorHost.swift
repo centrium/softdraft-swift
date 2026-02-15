@@ -38,7 +38,9 @@ struct PersistentEditorHost: View {
         MarkdownEditorView(
             text: $text,
             configuration: EditorConfiguration(
-                fontFamily: "SoftdraftEditorMono",
+                fontSize: AppTypography.editorFontSize,
+                fontFamily: AppTypography.editorFontFamily,
+                lineHeight: AppTypography.editorLineHeight,
                 showLineNumbers: false
             )
         )

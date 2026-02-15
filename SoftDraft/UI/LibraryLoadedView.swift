@@ -393,8 +393,7 @@ private extension LibraryLoadedView {
                     ProgressView()
                         .controlSize(.small)
                     Text("Inserting image…")
-                        .font(.footnote)
-                        .bold()
+                        .font(AppTypography.secondaryBodyEmphasis)
                 }
                 .padding(12)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -419,9 +418,9 @@ private extension LibraryLoadedView {
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Image couldn’t be inserted")
-                            .font(.callout.weight(.semibold))
+                            .font(AppTypography.secondaryBodyEmphasis)
                         Text(message)
-                            .font(.footnote)
+                            .font(AppTypography.secondaryBody)
                             .foregroundStyle(.secondary)
                             .lineLimit(4)
                     }

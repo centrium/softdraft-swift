@@ -49,13 +49,14 @@ struct MoveNoteSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Move note")
-                    .font(.title3.weight(.semibold))
+                    .font(AppTypography.secondaryHeading)
                 Text(subtitle)
-                    .font(.subheadline)
+                    .font(AppTypography.secondaryBody)
                     .foregroundStyle(.secondary)
             }
 
             TextField("Search collections", text: $query)
+                .font(AppTypography.secondaryBody)
                 .textFieldStyle(.roundedBorder)
                 .focused($searchFieldFocused)
                 .onChange(of: query) { _, _ in
@@ -70,6 +71,7 @@ struct MoveNoteSheet: View {
 
             List(filteredCollections, id: \.self, selection: $selectedDestination) { name in
                 Text(name)
+                    .font(AppTypography.secondaryBody)
                     .foregroundStyle(name == currentCollection ? .secondary : .primary)
                     .padding(.vertical, 4)
                     .listRowSeparator(.hidden)
@@ -84,11 +86,13 @@ struct MoveNoteSheet: View {
                 Button("Cancel") {
                     onCancel()
                 }
+                .font(AppTypography.secondaryBody)
                 .keyboardShortcut(.cancelAction)
 
                 Button("Move") {
                     confirmMoveIfPossible()
                 }
+                .font(AppTypography.secondaryBodyEmphasis)
                 .keyboardShortcut(.defaultAction)
                 .disabled(moveButtonDisabled)
             }

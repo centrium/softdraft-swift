@@ -187,14 +187,14 @@ struct NotesListView: View {
                             Spacer()
                             if let filteredEmptyMessage {
                                 Text(filteredEmptyMessage)
-                                    .font(.system(size: 13, weight: .regular))
+                                    .font(AppTypography.caption)
                                     .foregroundStyle(.secondary)
                             } else {
                                 Button {
                                     commandRegistry.run("note.create")
                                 } label: {
                                     Text("New note")
-                                        .font(.system(size: 13, weight: .medium))
+                                        .font(AppTypography.captionEmphasis)
                                         .foregroundStyle(.secondary)
                                 }
                                 .buttonStyle(.plain)
@@ -628,7 +628,7 @@ struct NotesListView: View {
         HStack(spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 11, weight: .regular))
+                    .font(AppTypography.caption)
                     .foregroundStyle(.secondary.opacity(0.65))
 
                 TextField("Search notes", text: $searchQuery)
@@ -651,7 +651,7 @@ struct NotesListView: View {
                         clearSearch()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 11))
+                            .font(AppTypography.caption)
                             .foregroundStyle(.secondary.opacity(0.55))
                     }
                     .buttonStyle(.plain)
@@ -683,7 +683,7 @@ struct NotesListView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("State filter")
         }
-        .font(.system(size: 13, weight: .regular))
+        .font(AppTypography.secondaryBody)
         .padding(.horizontal, 12)
         .padding(.top, 8)
         .padding(.bottom, 8)
@@ -842,7 +842,7 @@ private struct SearchResultRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(note.title)
-                    .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
+                    .font(isSelected ? AppTypography.secondaryBodyEmphasis : AppTypography.secondaryBody)
                     .lineLimit(1)
                     .foregroundStyle(
                         isHovered
@@ -852,7 +852,7 @@ private struct SearchResultRow: View {
 
                 if let metadataLine, !metadataLine.isEmpty {
                     Text(metadataLine)
-                        .font(.system(size: 11, weight: .regular))
+                        .font(AppTypography.caption)
                         .lineLimit(1)
                         .foregroundStyle(.secondary.opacity(0.72))
                 }
@@ -887,7 +887,7 @@ private struct SearchStatusRow: View {
             ProgressView()
                 .controlSize(.small)
             Text(label)
-                .font(.caption)
+                .font(AppTypography.caption)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -901,10 +901,10 @@ private struct TagSelectionPlaceholder: View {
             Spacer(minLength: 0)
             VStack(spacing: 4) {
                 Text("Choose a tag")
-                    .font(.system(size: 14, weight: .regular))
+                    .font(AppTypography.captionEmphasis)
                     .foregroundStyle(.primary.opacity(0.78))
                 Text("Select a tag from the sidebar to view its notes.")
-                    .font(.system(size: 12, weight: .regular))
+                    .font(AppTypography.caption)
                     .foregroundStyle(.secondary.opacity(0.82))
                     .multilineTextAlignment(.center)
             }
@@ -924,9 +924,9 @@ private struct SearchEmptyState: View {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         VStack(alignment: .leading, spacing: 8) {
             Text("No matches for \"\(trimmed)\"")
-                .font(.body.weight(.medium))
+                .font(AppTypography.captionEmphasis)
             Text("Try a different word in \(contextLabel).")
-                .font(.caption)
+                .font(AppTypography.caption)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

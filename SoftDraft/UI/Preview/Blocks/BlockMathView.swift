@@ -20,7 +20,7 @@ struct BlockMathView: View {
     var body: some View {
         ScrollView(.horizontal) {
             Text(source)
-                .font(.system(.body, design: .monospaced))
+                .font(AppTypography.monospacedBody)
                 .foregroundStyle(Color.primary)
                 .lineSpacing(6)
                 .lineLimit(nil)
@@ -30,7 +30,7 @@ struct BlockMathView: View {
         }
         .overlay(alignment: .topTrailing) {
             Text("Equation")
-                .font(.caption2)
+                .font(AppTypography.caption)
                 .foregroundStyle(Color.secondary)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)

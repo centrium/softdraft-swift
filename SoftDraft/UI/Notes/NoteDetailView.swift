@@ -44,10 +44,12 @@ struct NoteDetailView: View {
                 ProgressView()
             } else if let error = model.errorMessage {
                 Text(error)
+                    .font(AppTypography.caption)
                     .foregroundStyle(.secondary)
             } else {
                 ScrollView {
                     Text(model.content)
+                        .font(AppTypography.body)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(24)
                 }
@@ -64,6 +66,7 @@ struct NoteDetailView: View {
 
     private var emptyState: some View {
         Text("Select a note")
+            .font(AppTypography.caption)
             .foregroundStyle(.secondary)
     }
 }

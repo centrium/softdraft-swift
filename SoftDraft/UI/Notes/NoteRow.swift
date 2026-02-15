@@ -24,12 +24,12 @@ struct NoteRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(note.title)
-                    .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
+                    .font(isSelected ? AppTypography.secondaryBodyEmphasis : AppTypography.secondaryBody)
                     .lineLimit(1)
                     .foregroundStyle(Color.primary.opacity(recencyTitleOpacity))
 
                 Text(relativeRecencyText)
-                    .font(.system(size: 11, weight: .regular))
+                    .font(AppTypography.caption)
                     .lineLimit(1)
                     .foregroundStyle(.secondary.opacity(recencySubtitleOpacity))
             }
@@ -46,7 +46,7 @@ struct NoteRow: View {
 
                 if showsPinnedIndicator {
                     Image(systemName: "pin.fill")
-                        .font(.system(size: 8, weight: .regular))
+                        .font(AppTypography.caption)
                         .foregroundStyle(.secondary.opacity(0.5))
                 }
             }

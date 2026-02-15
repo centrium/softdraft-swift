@@ -58,8 +58,8 @@ func makePreviewHTML(body: String) -> String {
                 margin: 0;
                 padding: 48px 56px 80px;
                 font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui;
-                font-size: 16px;
-                line-height: 1.7;
+                font-size: 15px;
+                line-height: 1.6;
                 background: transparent;
                 color: rgba(0,0,0,0.85);
             }
@@ -70,16 +70,22 @@ func makePreviewHTML(body: String) -> String {
                 }
             }
 
-            h1, h2, h3 {
+            h1, h2 {
                 font-weight: 600;
                 line-height: 1.3;
                 margin-top: 2.2em;
                 margin-bottom: 0.6em;
             }
 
-            h1 { font-size: 1.8em; }
-            h2 { font-size: 1.4em; }
-            h3 { font-size: 1.2em; }
+            h1 { font-size: 1.6em; }
+            h2 { font-size: 1.33em; }
+            h3 {
+                font-size: 1em;
+                font-weight: 500;
+                line-height: 1.4;
+                margin-top: 2em;
+                margin-bottom: 0.6em;
+            }
 
             p {
                 margin: 0 0 1em 0;

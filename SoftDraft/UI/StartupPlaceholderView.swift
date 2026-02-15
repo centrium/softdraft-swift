@@ -12,6 +12,7 @@ struct StartupPlaceholderView: View {
         VStack(spacing: 12) {
             ProgressView()
             Text("Opening Softdraft…")
+                .font(AppTypography.secondaryBody)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

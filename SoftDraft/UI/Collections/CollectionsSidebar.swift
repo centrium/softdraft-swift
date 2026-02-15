@@ -252,7 +252,7 @@ struct CollectionsSidebar: View {
                         : SidebarAccentPalette.stripOpacity
                 ) {
                     Text("Inbox")
-                        .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                        .font(isSelected ? AppTypography.secondaryBodyEmphasis : AppTypography.secondaryBody)
                         .foregroundStyle(Color.primary.opacity(0.84))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -314,7 +314,7 @@ struct CollectionsSidebar: View {
                 } label: {
                     SidebarRow {
                         Text(uiState.isCollectionsListExpanded ? "Show less" : "Show more")
-                            .font(.system(size: 12, weight: .regular))
+                            .font(AppTypography.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -349,7 +349,7 @@ struct CollectionsSidebar: View {
                     : SidebarAccentPalette.stripOpacity
             ) {
                 Text(name)
-                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                    .font(isSelected ? AppTypography.secondaryBodyEmphasis : AppTypography.secondaryBody)
                     .foregroundStyle(Color.primary.opacity(0.84))
             }
         }
@@ -370,6 +370,7 @@ struct CollectionsSidebar: View {
 
     private var renameField: some View {
         TextField("", text: $selection.collectionRenameDraft)
+            .font(AppTypography.secondaryBody)
             .textFieldStyle(.plain)
             .focused($renameFieldFocused)
             .padding(.vertical, 4)
