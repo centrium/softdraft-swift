@@ -16,7 +16,7 @@ let moveNoteCommand = AppCommand(
     },
     perform: { ctx, arguments in
         guard let noteID = arguments.noteID ?? ctx.selection.selectedNoteID else { return }
-        ctx.selection.selectNote(noteID)
+        ctx.selectNoteResolvingInitialSurface(noteID)
 
         // Phase 1: intent only.
         // This command deliberately does NOT complete the action.

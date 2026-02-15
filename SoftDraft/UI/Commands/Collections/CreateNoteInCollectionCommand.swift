@@ -31,8 +31,7 @@ let createNoteInCollectionCommand = AppCommand(
         )
 
         if let noteID {
-            ctx.selection.selectNote(noteID)
-            ctx.uiState.isPreviewModeEnabled = false
+            ctx.selectNoteResolvingInitialSurface(noteID)
             ctx.uiState.requestFocus(.editor)
         }
     }

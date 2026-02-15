@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NotePreviewSurface: View {
     
+    let noteID: String?
     let text: String
     
     @State private var renderedView: AnyView = AnyView(Text(NotePreviewSurface.placeholderText))
@@ -9,7 +10,7 @@ struct NotePreviewSurface: View {
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var libraryManager: LibraryManager
     
-    private static let placeholderText = "Start typing to see the preview."
+    private static let placeholderText = ""
     private let debounceDelay: UInt64 = 140_000_000 // ~140ms
     private let parser = MarkdownASTParser()
     private let normalizer = MarkdownASTNormalizer()
@@ -29,7 +30,11 @@ struct NotePreviewSurface: View {
         }
         .textSelection(.enabled)
         .onAppear {
+            print("Preview rendering noteID:", noteID ?? "nil")
             renderImmediately(for: text)
+        }
+        .onChange(of: noteID) { _, newValue in
+            print("Preview rendering noteID:", newValue ?? "nil")
         }
         .onChange(of: text) { _, newValue in
             scheduleRender(for: newValue)

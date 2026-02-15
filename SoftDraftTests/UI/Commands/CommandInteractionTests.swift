@@ -427,6 +427,87 @@ final class CommandInteractionTests: XCTestCase {
         XCTAssertEqual(setup.manager.libraryIndex?.notes[noteID]?.state, .finished)
     }
 
+    func testResolveInitialSurfaceUsesStateAndSessionRules() throws {
+        let uiState = UIState()
+        let sessionState = NotePreviewSessionController()
+
+        let drafting = NoteSummary(
+            id: "Inbox/drafting.md",
+            name: "drafting.md",
+            title: "Drafting",
+            relativeDir: "Inbox",
+            modifiedAt: Date(),
+            pinned: false,
+            state: .drafting
+        )
+        let refining = NoteSummary(
+            id: "Inbox/refining.md",
+            name: "refining.md",
+            title: "Refining",
+            relativeDir: "Inbox",
+            modifiedAt: Date(),
+            pinned: false,
+            state: .refining
+        )
+        let finished = NoteSummary(
+            id: "Inbox/finished.md",
+            name: "finished.md",
+            title: "Finished",
+            relativeDir: "Inbox",
+            modifiedAt: Date(),
+            pinned: false,
+            state: .finished
+        )
+
+        XCTAssertEqual(
+            uiState.resolveInitialSurface(for: drafting, sessionState: sessionState),
+            .editor
+        )
+        XCTAssertEqual(
+            uiState.resolveInitialSurface(for: refining, sessionState: sessionState),
+            .editor
+        )
+        XCTAssertEqual(
+            uiState.resolveInitialSurface(for: finished, sessionState: sessionState),
+            .preview
+        )
+
+        sessionState.markPreviewShown(noteID: refining.id, state: .refining)
+        XCTAssertEqual(
+            uiState.resolveInitialSurface(for: refining, sessionState: sessionState),
+            .preview
+        )
+    }
+
+    func testPreviewCommandMarksOnlyRefiningNotesInSession() async throws {
+        let setup = try await makeContext()
+        let refiningID = try writeNote(
+            libraryURL: setup.libraryURL,
+            collection: "Inbox",
+            title: "Refining Note",
+            markdown: "# Refining\n\nBody"
+        )
+        let draftingID = try writeNote(
+            libraryURL: setup.libraryURL,
+            collection: "Inbox",
+            title: "Drafting Note",
+            markdown: "# Drafting\n\nBody"
+        )
+        await setup.manager.rebuildLibraryIndex(libraryURL: setup.libraryURL)
+
+        setup.manager.setNoteState(noteID: refiningID, state: .refining)
+        setup.selection.selectCollection("Inbox")
+        setup.selection.selectNote(refiningID)
+
+        await togglePreviewModeCommand.perform(setup.context)
+        XCTAssertTrue(setup.uiState.isPreviewModeEnabled)
+        XCTAssertTrue(setup.notePreviewSessionState.hasPreviewedInSession(noteID: refiningID))
+
+        setup.selection.selectNote(draftingID)
+        await togglePreviewModeCommand.perform(setup.context)
+        XCTAssertFalse(setup.notePreviewSessionState.hasPreviewedInSession(noteID: draftingID))
+    }
+
     // MARK: - Helpers
 
     private struct Setup {
@@ -434,6 +515,7 @@ final class CommandInteractionTests: XCTestCase {
         let manager: LibraryManager
         let selection: SelectionModel
         let uiState: UIState
+        let notePreviewSessionState: NotePreviewSessionController
         let libraryURL: URL
     }
 
@@ -442,6 +524,7 @@ final class CommandInteractionTests: XCTestCase {
         let manager = LibraryManager()
         let selection = SelectionModel()
         let uiState = UIState()
+        let notePreviewSessionState = NotePreviewSessionController()
 
         manager.bind(selection: selection)
         await manager.setActiveLibrary(libraryURL)
@@ -451,11 +534,13 @@ final class CommandInteractionTests: XCTestCase {
             context: CommandContext(
                 libraryManager: manager,
                 selection: selection,
-                uiState: uiState
+                uiState: uiState,
+                notePreviewSessionState: notePreviewSessionState
             ),
             manager: manager,
             selection: selection,
             uiState: uiState,
+            notePreviewSessionState: notePreviewSessionState,
             libraryURL: libraryURL
         )
     }

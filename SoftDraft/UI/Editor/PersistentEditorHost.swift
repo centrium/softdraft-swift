@@ -13,16 +13,26 @@ struct PersistentEditorHost: View {
 
     // Incoming identity (selection-driven)
     let noteID: String?
+    let sourceText: String
 
     // Editor-owned mutable identity (CRITICAL for rename)
     @State private var currentNoteID: String?
 
-    @State private var text: String = ""
+    @State private var text: String
     @State private var autosave = AutosaveController()
     @State private var isLoading = false
     @State private var isApplyingLoadedText = false
     @State private var hasPendingEdits = false
     @State private var observedExternalToken: UUID?
+
+    init(
+        noteID: String?,
+        sourceText: String
+    ) {
+        self.noteID = noteID
+        self.sourceText = sourceText
+        _text = State(initialValue: sourceText)
+    }
 
     var body: some View {
         MarkdownEditorView(
@@ -33,6 +43,23 @@ struct PersistentEditorHost: View {
             )
         )
         .lockEmbeddedWebInspectors()
+        .onAppear {
+            print("Editor rendering noteID:", noteID ?? "nil")
+        }
+        .onChange(of: noteID) { _, newValue in
+            print("Editor rendering noteID:", newValue ?? "nil")
+        }
+        .onChange(of: sourceText) { _, newValue in
+            guard text != newValue else { return }
+
+            isApplyingLoadedText = true
+            text = newValue
+
+            // Keep autosave guard up for this transaction.
+            Task { @MainActor in
+                isApplyingLoadedText = false
+            }
+        }
 
         // ───────── Text change → autosave ─────────
         .onChange(of: text) { _, newValue in

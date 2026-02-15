@@ -87,7 +87,7 @@ extension LibraryManager {
         activeLibraryURL = nil
         startupState = .noLibrary
         resetVisibleState()
-        selection?.selectedNoteID = nil
+        selection?.selectNote(nil)
         deferSearchIndexRebuild = false
         hasPendingSearchIndexRebuild = false
         searchIndexRebuildTask?.cancel()

@@ -29,7 +29,7 @@ let createNoteCommand = AppCommand(
         )
 
         if let noteID {
-            ctx.selection.selectNote(noteID)
+            ctx.selectNoteResolvingInitialSurface(noteID)
         }
     }
 )

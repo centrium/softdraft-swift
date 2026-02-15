@@ -26,19 +26,58 @@ final class SelectionModel: ObservableObject {
     @Published var collectionRenameDraft: String = ""
 
     @Published var pendingMove: PendingMove? = nil
+    private var resolvePreviewModeForNoteID: ((String) -> Bool)?
+    private var resolveCurrentNoteTextForNoteID: ((String) -> String)?
+    private var applyPreviewMode: ((Bool) -> Void)?
+    private var applyCurrentNoteText: ((String) -> Void)?
+
+    func configurePreviewModeResolver(
+        resolve: @escaping (String) -> Bool,
+        applyPreview: @escaping (Bool) -> Void,
+        resolveText: @escaping (String) -> String,
+        applyText: @escaping (String) -> Void
+    ) {
+        resolvePreviewModeForNoteID = resolve
+        applyPreviewMode = applyPreview
+        resolveCurrentNoteTextForNoteID = resolveText
+        applyCurrentNoteText = applyText
+    }
 
     func selectCollection(_ id: String?) {
         selectedCollectionID = id
-        selectedNoteID = nil
+        selectNote(nil)
         pendingMove = nil
     }
 
     func selectNote(_ id: String?) {
-        selectedNoteID = id
+        let previousNoteID = selectedNoteID
+        print("Switch note:", previousNoteID ?? "nil", "->", id ?? "nil")
+
+        if let id,
+           let resolveCurrentNoteTextForNoteID,
+           let resolvePreviewModeForNoteID,
+           let applyCurrentNoteText,
+           let applyPreviewMode {
+            let resolvedText = resolveCurrentNoteTextForNoteID(id)
+            applyCurrentNoteText(resolvedText)
+
+            selectedNoteID = id
+
+            let isPreview = resolvePreviewModeForNoteID(id)
+            applyPreviewMode(isPreview)
+            print("Preview mode before render:", isPreview)
+            return
+        } else {
+            applyCurrentNoteText?("")
+            selectedNoteID = nil
+            applyPreviewMode?(false)
+            print("Preview mode before render:", false)
+            return
+        }
     }
 
     func clearNoteSelection() {
-        selectedNoteID = nil
+        selectNote(nil)
         pendingMove = nil
     }
     

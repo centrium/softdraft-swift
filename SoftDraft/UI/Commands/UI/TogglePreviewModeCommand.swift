@@ -9,14 +9,25 @@ import SwiftUI
 
 let togglePreviewModeCommand = AppCommand(
     id: "view.togglePreviewMode",
-    title: "Toggle Preview Mode",
+    title: "Preview Note",
     shortcut: KeyboardShortcut("p", modifiers: [.command, .option]),
     isEnabled: { ctx in
         ctx.selection.selectedNoteID != nil
     },
     perform: { ctx in
-        withAnimation(.easeInOut(duration: 0.25)) {
-            ctx.uiState.isPreviewModeEnabled.toggle()
+        guard let noteID = ctx.selection.selectedNoteID else { return }
+        let noteState = ctx.libraryManager.noteState(noteID: noteID)
+
+        let isEnteringPreview = !ctx.uiState.isPreviewModeEnabled
+        if isEnteringPreview {
+            ctx.notePreviewSessionState.markPreviewShown(
+                noteID: noteID,
+                state: noteState
+            )
+        }
+
+        withAnimation(.easeInOut(duration: 0.16)) {
+            ctx.uiState.setSurface(isEnteringPreview ? .preview : .editor)
         }
     }
 )

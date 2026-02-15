@@ -56,7 +56,7 @@ extension LibraryManager {
                 guard !shouldIgnore(noteID: from), !shouldIgnore(noteID: to) else { continue }
                 reconciliationEvents.append(event)
                 if selection?.selectedNoteID == from {
-                    selection?.selectedNoteID = to
+                    selection?.selectNote(to)
                     signalExternalChange(for: to)
                 }
 
@@ -64,7 +64,7 @@ extension LibraryManager {
                 guard !shouldIgnore(noteID: noteID) else { continue }
                 reconciliationEvents.append(event)
                 if selection?.selectedNoteID == noteID {
-                    selection?.selectedNoteID = nil
+                    selection?.selectNote(nil)
                 }
 
             case let .collectionRenamed(from, to):
@@ -115,7 +115,7 @@ extension LibraryManager {
         }
 
         if selection?.selectedNoteID == oldID {
-            selection?.selectedNoteID = newID
+            selection?.selectNote(newID)
         }
 
         updateVisibleNotes()

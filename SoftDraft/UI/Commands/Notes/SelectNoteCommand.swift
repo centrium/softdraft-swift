@@ -24,6 +24,6 @@ let selectNoteCommand = AppCommand(
             }
         }
 
-        ctx.selection.selectNote(noteID)
+        ctx.selectNoteResolvingInitialSurface(noteID)
     }
 )

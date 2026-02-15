@@ -18,6 +18,11 @@ enum FocusRegion: CaseIterable {
     case editor
 }
 
+enum NoteSurface: Equatable {
+    case editor
+    case preview
+}
+
 @MainActor
 final class UIState: ObservableObject {
 
@@ -45,5 +50,39 @@ final class UIState: ObservableObject {
     func requestFocus(_ region: FocusRegion) {
         requestedFocusRegion = region
         focusRequestToken &+= 1
+    }
+
+    var currentSurface: NoteSurface {
+        isPreviewModeEnabled ? .preview : .editor
+    }
+
+    func setSurface(_ surface: NoteSurface) {
+        isPreviewModeEnabled = surface == .preview
+    }
+
+    func resolveInitialSurface(
+        for note: NoteSummary,
+        sessionState: NotePreviewSessionController
+    ) -> NoteSurface {
+        resolveInitialSurface(
+            for: note.id,
+            state: note.state,
+            sessionState: sessionState
+        )
+    }
+
+    func resolveInitialSurface(
+        for noteID: String,
+        state: NoteState,
+        sessionState: NotePreviewSessionController
+    ) -> NoteSurface {
+        switch state {
+        case .finished:
+            return .preview
+        case .refining:
+            return sessionState.hasPreviewedInSession(noteID: noteID) ? .preview : .editor
+        case .drafting:
+            return .editor
+        }
     }
 }

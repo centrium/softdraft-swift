@@ -185,6 +185,7 @@ struct LibraryLoadedView: View {
                 editorFocused = false
                 return
             }
+            uiState.setSurface(.editor)
             guard selection.selectedNoteID != nil else {
                 editorFocused = false
                 return
@@ -193,6 +194,10 @@ struct LibraryLoadedView: View {
         }
         .onChange(of: selection.selectedNoteID) { _, newValue in
             guard newValue != nil else {
+                editorFocused = false
+                return
+            }
+            guard !uiState.isPreviewModeEnabled else {
                 editorFocused = false
                 return
             }
@@ -287,8 +292,6 @@ private extension LibraryLoadedView {
                     ? 0
                     : 1
                 )
-                .animation(.easeInOut(duration: 0.25),
-                           value: uiState.isPreviewModeEnabled)
                 .onChange(of: uiState.isPreviewModeEnabled) { _, isPreview in
                     if isPreview {
                         editorFocused = false
@@ -303,10 +306,6 @@ private extension LibraryLoadedView {
                     : 0
                 )
                 .allowsHitTesting(uiState.isPreviewModeEnabled)
-                .animation(
-                    .easeInOut(duration: 0.25),
-                    value: uiState.isPreviewModeEnabled
-                )
                 .focusable(false)
         }
     }
@@ -320,7 +319,10 @@ private extension LibraryLoadedView {
         ZStack {
 
             // Editor content
-            PersistentEditorHost(noteID: selection.selectedNoteID)
+            PersistentEditorHost(
+                noteID: selection.selectedNoteID,
+                sourceText: libraryManager.currentNoteText
+            )
                 .focused($editorFocused)
                 .opacity(selection.selectedNoteID == nil ? 0 : 1)
                 .mask(editorFadeMask)
@@ -353,7 +355,11 @@ private extension LibraryLoadedView {
 private extension LibraryLoadedView {
     
     var previewStack: some View {
-        NotePreviewSurface(text: libraryManager.currentNoteText)
+        NotePreviewSurface(
+            noteID: selection.selectedNoteID,
+            text: libraryManager.currentNoteText
+        )
+            .id(selection.selectedNoteID ?? "__no-note-preview__")
             .mask(editorFadeMask)
     }
 }

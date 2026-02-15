@@ -75,8 +75,7 @@ let duplicateNoteCommand = AppCommand(
 
             ctx.libraryManager.persistLibraryIndex(libraryURL: libraryURL)
             ctx.libraryManager.reloadCurrentCollection()
-            ctx.selection.selectNote(created.summary.id)
-            ctx.uiState.isPreviewModeEnabled = false
+            ctx.selectNoteResolvingInitialSurface(created.summary.id)
             ctx.uiState.requestFocus(.editor)
         } catch {
             return
