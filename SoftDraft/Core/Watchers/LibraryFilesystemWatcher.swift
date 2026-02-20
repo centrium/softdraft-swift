@@ -7,6 +7,12 @@
 
 import Foundation
 import CoreServices
+import OSLog
+
+private let filesystemWatcherLogger = Logger(
+    subsystem: "com.softdraft.app",
+    category: "LibraryFilesystemWatcher"
+)
 
 enum LibraryFilesystemEvent: Equatable {
     case added(noteID: String)
@@ -58,8 +64,10 @@ final class LibraryFilesystemWatcher {
         debounceInterval: TimeInterval = 0.35,
         handler: @escaping EventHandler
     ) {
-        self.libraryURL = libraryURL
-        self.collectionsURL = libraryURL.appendingPathComponent("collections")
+        self.libraryURL = libraryURL.standardizedFileURL
+        self.collectionsURL = self.libraryURL
+            .appendingPathComponent("collections", isDirectory: true)
+            .standardizedFileURL
         self.debounceInterval = debounceInterval
         self.handler = handler
         self.queue.setSpecific(key: queueKey, value: ())
@@ -339,15 +347,25 @@ final class LibraryFilesystemWatcher {
     }
 
     private func relativePath(for fileURL: URL) -> String {
-        let basePath = collectionsURL.path
-        var path = fileURL.path
-        if path.hasPrefix(basePath) {
-            path.removeFirst(basePath.count)
+        if let noteID = deriveCanonicalNoteID(
+            libraryRootURL: libraryURL,
+            fileURL: fileURL
+        ) {
+            return noteID
         }
-        return path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+
+        let canonicalRootPath = libraryURL.standardizedFileURL.path
+        let canonicalFilePath = fileURL.standardizedFileURL.path
+        if !canonicalFilePath.hasPrefix(canonicalRootPath + "/") {
+            filesystemWatcherLogger.warning(
+                "Ignoring file event outside canonical root: \(canonicalFilePath, privacy: .public)"
+            )
+        }
+
+        return ""
     }
 
-    private static func makeIdentifier(from value: Any) -> UInt64? {
+    nonisolated private static func makeIdentifier(from value: Any) -> UInt64? {
         if let number = value as? NSNumber {
             return number.uint64Value
         }
@@ -361,4 +379,38 @@ final class LibraryFilesystemWatcher {
 
         return nil
     }
+}
+
+func deriveCanonicalNoteID(
+    libraryRootURL: URL,
+    fileURL: URL
+) -> String? {
+    let canonicalLibraryRoot = libraryRootURL.standardizedFileURL
+    let canonicalFileURL = fileURL.standardizedFileURL
+
+    let rootPath = canonicalLibraryRoot.path
+    let filePath = canonicalFileURL.path
+
+    guard filePath.hasPrefix(rootPath + "/") else {
+        return nil
+    }
+
+    let relativeStartIndex = filePath.index(
+        filePath.startIndex,
+        offsetBy: rootPath.count + 1
+    )
+    let relativePath = String(filePath[relativeStartIndex...])
+    let components = relativePath
+        .split(separator: "/")
+        .map(String.init)
+
+    guard components.count >= 3 else {
+        return nil
+    }
+
+    guard components.first == CollectionStore.collectionsDir else {
+        return nil
+    }
+
+    return components.dropFirst().joined(separator: "/")
 }

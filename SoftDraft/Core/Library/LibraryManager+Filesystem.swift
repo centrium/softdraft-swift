@@ -4,6 +4,12 @@
 //
 
 import Foundation
+import OSLog
+
+private let libraryWatcherLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "com.softdraft.app",
+    category: "LibraryWatcher"
+)
 
 extension LibraryManager {
 
@@ -132,7 +138,8 @@ extension LibraryManager {
     }
 
     func startWatcher(for url: URL) {
-        let watcher = LibraryFilesystemWatcher(libraryURL: url) { [weak self] events in
+        let canonicalRoot = url.standardizedFileURL
+        let watcher = LibraryFilesystemWatcher(libraryURL: canonicalRoot) { [weak self] events in
             guard let self else { return }
             Task { @MainActor in
                 guard !self.isPerformingInternalWrite else { return }
@@ -141,6 +148,9 @@ extension LibraryManager {
         }
         watcher.start()
         filesystemWatcher = watcher
+        libraryWatcherLogger.info(
+            "Watcher attached to canonical root: \(canonicalRoot.path, privacy: .public)"
+        )
     }
 
     func stopWatcher() {

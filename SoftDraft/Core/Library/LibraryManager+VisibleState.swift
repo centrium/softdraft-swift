@@ -135,6 +135,8 @@ extension LibraryManager {
             updateVisibleNotes()
             validateSelectionInVisibleNotes()
         }
+
+        restoreInitialNoteSelectionIfNeeded()
     }
 
     private func restoreInitialCollectionSelection(
@@ -189,5 +191,18 @@ extension LibraryManager {
             updateVisibleNotes()
             validateSelectionInVisibleNotes()
         }
+    }
+
+    private func restoreInitialNoteSelectionIfNeeded() {
+        guard let selection else { return }
+        guard selection.selectedNoteID == nil else { return }
+        guard !visibleNotes.isEmpty else { return }
+
+        if let welcome = visibleNotes.first(where: { $0.id == "Inbox/Welcome.md" }) {
+            selection.selectNote(welcome.id)
+            return
+        }
+
+        selection.selectNote(visibleNotes.first?.id)
     }
 }

@@ -4,6 +4,12 @@
 //
 
 import Foundation
+import OSLog
+
+private let libraryActivationLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "com.softdraft.app",
+    category: "LibraryActivation"
+)
 
 extension LibraryManager {
 
@@ -12,44 +18,47 @@ extension LibraryManager {
     func resolveInitialLibrarySync() {
         let config = AppConfigStore.loadSync()
 
-        guard let url = config.lastLibraryURL else {
+        guard let storedURL = config.lastLibraryURL else {
+            transitionToNoLibrary()
+            return
+        }
+        let canonicalURL = storedURL.standardizedFileURL
+
+        guard LibraryValidator.isLibraryRoot(canonicalURL) else {
             transitionToNoLibrary()
             return
         }
 
-        guard LibraryValidator.isLibraryRoot(url) else {
-            transitionToNoLibrary()
-            return
-        }
-
-        transitionToLoadedLibrary(url)
+        transitionToLoadedLibrary(canonicalURL)
     }
 
     func resolveInitialLibrary() async {
         guard case .resolving = startupState else { return }
         let config = await AppConfigStore.load()
 
-        guard let url = config.lastLibraryURL else {
+        guard let storedURL = config.lastLibraryURL else {
             transitionToNoLibrary()
             return
         }
+        let canonicalURL = storedURL.standardizedFileURL
 
         // Validate the library still exists and is usable
-        guard LibraryValidator.isLibraryRoot(url) else {
+        guard LibraryValidator.isLibraryRoot(canonicalURL) else {
             transitionToNoLibrary()
             return
         }
 
-        transitionToLoadedLibrary(url)
+        transitionToLoadedLibrary(canonicalURL)
     }
 
     // MARK: - Library lifecycle
 
     func setActiveLibrary(_ url: URL) async {
-        transitionToLoadedLibrary(url)
+        let canonicalURL = url.standardizedFileURL
+        transitionToLoadedLibrary(canonicalURL)
 
         var config = await AppConfigStore.load()
-        config.lastLibraryURL = url
+        config.lastLibraryURL = canonicalURL
         await AppConfigStore.save(config)
     }
 
@@ -62,8 +71,9 @@ extension LibraryManager {
     }
 
     private func transitionToLoadedLibrary(_ url: URL) {
+        let canonicalURL = url.standardizedFileURL
         stopWatcher()
-        activeLibraryURL = url
+        activeLibraryURL = canonicalURL
         deferSearchIndexRebuild = true
         hasPendingSearchIndexRebuild = false
         searchIndexRebuildTask?.cancel()
@@ -73,13 +83,14 @@ extension LibraryManager {
         hasRunPinnedMigration = false
 
         // ✅ NEW: load or create library index
-        loadOrCreateLibraryIndex(libraryURL: url)
+        loadOrCreateLibraryIndex(libraryURL: canonicalURL)
 
-        applyIndexSnapshot(libraryURL: url)
+        applyIndexSnapshot(libraryURL: canonicalURL)
 
-        startupState = .loaded(url)
+        startupState = .loaded(canonicalURL)
 
-        startPostLaunchTasks(for: url)
+        startPostLaunchTasks(for: canonicalURL)
+        libraryActivationLogger.info("Library activated successfully")
     }
 
     private func transitionToNoLibrary() {

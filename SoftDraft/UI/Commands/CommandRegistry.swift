@@ -93,6 +93,7 @@ final class CommandRegistry: ObservableObject {
         register(selectTagCommand)
         register(removeTagFromNoteCommand)
         register(clearTagSelectionCommand)
+        register(createNewLibraryCommand)
         register(rebuildLibraryIndexCommand)
         register(toggleZenModeCommand)
         register(togglePreviewModeCommand)
