@@ -26,7 +26,7 @@ final class CreateNewLibraryCommandTests: XCTestCase {
         XCTAssertEqual(index.collections["Inbox"]?.noteIDs, ["Inbox/Welcome.md"])
     }
 
-    func testOpeningNewLibrarySelectsWelcomeAndSetsPreviewSurface() async throws {
+    func testOpeningNewLibraryShowsLandingWithoutAutoOpeningWelcome() async throws {
         let rootURL = try makeEmptyDirectory()
         try await createInitialLibraryStructure(at: rootURL)
 
@@ -64,7 +64,9 @@ final class CreateNewLibraryCommandTests: XCTestCase {
         await manager.setActiveLibrary(rootURL)
 
         XCTAssertEqual(selection.selectedCollectionID, "Inbox")
-        XCTAssertEqual(selection.selectedNoteID, "Inbox/Welcome.md")
+        XCTAssertNil(selection.selectedNoteID)
+        XCTAssertEqual(manager.currentNoteText, "")
+        XCTAssertFalse(uiState.isPreviewModeEnabled)
         XCTAssertEqual(manager.noteState(noteID: "Inbox/Welcome.md"), .finished)
     }
 

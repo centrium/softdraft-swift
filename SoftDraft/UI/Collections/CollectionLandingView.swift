@@ -15,95 +15,173 @@ struct CollectionLandingView: View {
     let collectionName: String
     let summary: CollectionLandingSummary?
     @Environment(\.colorScheme) private var colorScheme
+    @State private var headlineText: String = "Inbox is open."
+    @State private var previousHeadlineTemplate: String? = nil
+    @State private var headlineVisible = false
 
     var body: some View {
         ZStack {
-            backgroundImage
+            inkyBackground
+            landingCopy
+        }
+        .onAppear {
+            refreshHeadline(for: collectionName, animated: true)
+        }
+        .onChange(of: collectionName) { _, newValue in
+            refreshHeadline(for: newValue, animated: true)
+        }
+    }
 
-            promptText
+    private var inkyBackground: some View {
+        ZStack {
+            baseSurfaceColor
+            Rectangle()
+                .fill(layerSurfaceColor)
+                .blendMode(colorScheme == .dark ? .screen : .multiply)
+                .opacity(colorScheme == .dark ? 0.06 : 0.035)
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
 
-            VStack {
-                Spacer(minLength: 0)
-                contentCard
+    private var landingCopy: some View {
+        GeometryReader { proxy in
+            VStack(spacing: 16) {
+                Text(collectionLabel.uppercased())
+                    .font(.system(size: 10, weight: .regular, design: .default))
+                    .tracking(1.85)
+                    .foregroundStyle(contextInkColor.opacity(0.78))
+                    .textSelection(.disabled)
+
+                Text(headlineText)
+                    .font(.system(size: 33, weight: .semibold, design: .serif))
+                    .lineSpacing(7)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(primaryInkColor)
+                    .frame(maxWidth: 560)
+                    .opacity(headlineVisible ? 1.0 : 0.0)
+                    .textSelection(.disabled)
+
+                Text(secondaryLine)
+                    .font(.system(size: 13, weight: .medium, design: .default))
+                    .tracking(0.25)
+                    .lineSpacing(4)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(secondaryInkColor.opacity(0.90))
+                    .frame(maxWidth: 500)
+                    .padding(.top, 5)
+                    .textSelection(.disabled)
             }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 32)
+            .padding(.horizontal, 40)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .offset(y: -(proxy.size.height * 0.06))
         }
     }
 
-    private var backgroundImage: some View {
-        Image("CollectionLandingBackground")
-            .resizable()
-            .scaledToFill()
-            .saturation(1.1)
-            .contrast(colorScheme == .dark ? 0.9 : 1.05)
-            .overlay {
-                LinearGradient(
-                    colors: [
-                        .black.opacity(colorScheme == .dark ? 0.65 : 0.45),
-                        .black.opacity(colorScheme == .dark ? 0.2 : 0.0)
-                    ],
-                    startPoint: .bottom,
-                    endPoint: .top
-                )
-                .blendMode(.multiply)
-            }
-            .ignoresSafeArea()
-            .allowsHitTesting(false)
+    private var collectionLabel: String {
+        collectionName.localizedCaseInsensitiveCompare("Inbox") == .orderedSame
+            ? "Inbox"
+            : collectionName
     }
 
-    private var contentCard: some View {
-        VStack(spacing: 12) {
-            Text(collectionName)
-                .font(AppTypography.primaryTitle)
-                .multilineTextAlignment(.center)
-                .lineLimit(3)
-                .minimumScaleFactor(0.85)
-                .textSelection(.disabled)
-
-            Text(metadataLine)
-                .font(AppTypography.secondaryBody)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .minimumScaleFactor(0.9)
-                .textSelection(.disabled)
+    private var secondaryLine: String {
+        if isCollectionEmpty {
+            return "Quiet, deliberate, and ready."
         }
-        .frame(maxWidth: 460)
-        .padding(.vertical, 32)
-        .padding(.horizontal, 32)
-        .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .opacity(colorScheme == .dark ? 0.9 : 0.95)
-        )
-        .shadow(color: .black.opacity(colorScheme == .dark ? 0.5 : 0.2), radius: 24, y: 14)
-        .frame(maxWidth: .infinity)
+        return metadataLine
     }
 
-    private var promptText: some View {
-        Text(promptLine)
-            .font(AppTypography.secondaryHeading)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, 24)
-            .foregroundStyle(.white.opacity(colorScheme == .dark ? 0.95 : 0.9))
-            .shadow(color: .black.opacity(0.4), radius: 12, y: 6)
-            .allowsHitTesting(false)
+    private var baseSurfaceColor: Color {
+        if colorScheme == .dark {
+            return Color(red: 0.10, green: 0.105, blue: 0.11)
+        }
+        return Color(red: 0.962, green: 0.947, blue: 0.923)
     }
 
-    private var promptLine: String {
-        let hour = Calendar.current.component(.hour, from: Date())
-        switch hour {
-        case 5..<12:
-            return "What are you going to write this morning?"
-        case 12..<17:
-            return "What are you going to write this afternoon?"
-        case 17..<22:
-            return "What are you going to write this evening?"
-        default:
-            return "What are you going to write today?"
+    private var layerSurfaceColor: Color {
+        if colorScheme == .dark {
+            return Color(red: 0.20, green: 0.205, blue: 0.212)
+        }
+        return Color(red: 0.90, green: 0.875, blue: 0.84)
+    }
+
+    private var primaryInkColor: Color {
+        if colorScheme == .dark {
+            return Color(red: 0.84, green: 0.82, blue: 0.79)
+        }
+        return Color(red: 0.17, green: 0.145, blue: 0.12)
+    }
+
+    private var secondaryInkColor: Color {
+        if colorScheme == .dark {
+            return Color(red: 0.66, green: 0.63, blue: 0.59)
+        }
+        return Color(red: 0.34, green: 0.29, blue: 0.24)
+    }
+
+    private var contextInkColor: Color {
+        if colorScheme == .dark {
+            return Color(red: 0.58, green: 0.55, blue: 0.51)
+        }
+        return Color(red: 0.42, green: 0.35, blue: 0.28)
+    }
+
+    private var isCollectionEmpty: Bool {
+        (summary?.noteCount ?? 0) == 0
+    }
+
+    private func refreshHeadline(for name: String, animated: Bool) {
+        let template = pickHeadlineTemplate()
+        previousHeadlineTemplate = template
+        headlineText = template.replacingOccurrences(of: "{Collection}", with: label(for: name))
+
+        guard animated else {
+            headlineVisible = true
+            return
+        }
+
+        headlineVisible = false
+        withAnimation(.easeOut(duration: 0.52)) {
+            headlineVisible = true
         }
     }
+
+    private func pickHeadlineTemplate() -> String {
+        let templates: [String] = isCollectionEmpty
+            ? Self.emptyHeadlineTemplates
+            : Self.populatedHeadlineTemplates
+
+        let choices: [String]
+        if let previousHeadlineTemplate, templates.count > 1 {
+            let filtered = templates.filter { $0 != previousHeadlineTemplate }
+            choices = filtered.isEmpty ? templates : filtered
+        } else {
+            choices = templates
+        }
+
+        return choices.randomElement() ?? templates[0]
+    }
+
+    private func label(for name: String) -> String {
+        name.localizedCaseInsensitiveCompare("Inbox") == .orderedSame ? "Inbox" : name
+    }
+
+    private static let emptyHeadlineTemplates: [String] = [
+        "{Collection} is open.",
+        "Everything in {Collection}, held quietly.",
+        "Nothing pressing in {Collection}.",
+        "{Collection} keeps its place.",
+        "{Collection}, ready when you are.",
+    ]
+
+    private static let populatedHeadlineTemplates: [String] = [
+        "{Collection} is open.",
+        "Everything in {Collection}, held quietly.",
+        "{Collection}, just as you left it.",
+        "{Collection} keeps its place.",
+        "Notes in {Collection}, kept lightly.",
+        "{Collection}, ready when you are.",
+    ]
 
     private var metadataLine: String {
         let countText = noteCountDescriptor(for: summary?.noteCount)
@@ -111,13 +189,13 @@ struct CollectionLandingView: View {
 
         switch (countText.isEmpty, updatedText.isEmpty) {
         case (true, true):
-            return "Select a note when you’re ready to continue"
+            return "Quiet for now"
         case (false, true):
             return countText
         case (true, false):
             return updatedText
         default:
-            return "\(countText) • \(updatedText)"
+            return "\(countText) · \(updatedText)"
         }
     }
 
@@ -136,7 +214,7 @@ struct CollectionLandingView: View {
     private var lastUpdatedText: String {
         guard let lastUpdated = summary?.lastUpdated else { return "" }
 
-        return "Last updated "
+        return "Updated "
             + lastUpdated.formatted(
                 Date.FormatStyle()
                     .month(.abbreviated)

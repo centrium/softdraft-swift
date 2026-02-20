@@ -29,7 +29,8 @@ struct NoteRow: View {
                     .foregroundStyle(Color.primary.opacity(recencyTitleOpacity))
 
                 Text(relativeRecencyText)
-                    .font(AppTypography.caption)
+                    .font(.system(size: 10, weight: .regular, design: .default))
+                    .tracking(0.28)
                     .lineLimit(1)
                     .foregroundStyle(.secondary.opacity(recencySubtitleOpacity))
             }
@@ -61,7 +62,7 @@ struct NoteRow: View {
     }
 
     private var recencySubtitleOpacity: Double {
-        max(0.56, recencyTitleOpacity - 0.18)
+        max(0.48, recencyTitleOpacity - 0.24)
     }
 
     private static let relativeFormatter: RelativeDateTimeFormatter = {

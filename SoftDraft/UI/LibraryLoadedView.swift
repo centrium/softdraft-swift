@@ -279,32 +279,29 @@ private extension LibraryLoadedView {
 
     var layeredEditor: some View {
         ZStack {
-
-            // ───────── Editor (always mounted) ─────────
-            editorStack
-                .allowsHitTesting(
-                    !(uiState.isPreviewModeEnabled && selection.selectedNoteID != nil)
-                )
-                .opacity(
-                    uiState.isPreviewModeEnabled && selection.selectedNoteID != nil
-                    ? 0
-                    : 1
-                )
-                .onChange(of: uiState.isPreviewModeEnabled) { _, isPreview in
-                    if isPreview {
-                        editorFocused = false
+            if let selectedNoteID = selection.selectedNoteID {
+                editorStack(noteID: selectedNoteID)
+                    .allowsHitTesting(!uiState.isPreviewModeEnabled)
+                    .opacity(uiState.isPreviewModeEnabled ? 0 : 1)
+                    .onChange(of: uiState.isPreviewModeEnabled) { _, isPreview in
+                        if isPreview {
+                            editorFocused = false
+                        }
                     }
-                }
 
-            // ───────── Preview overlay ─────────
-            previewStack
-                .opacity(
-                    uiState.isPreviewModeEnabled && selection.selectedNoteID != nil
-                    ? 1
-                    : 0
+                if uiState.isPreviewModeEnabled {
+                    previewStack(noteID: selectedNoteID)
+                        .allowsHitTesting(true)
+                        .focusable(false)
+                }
+            } else {
+                // Keep launch paint fast: mount landing only until the user selects a note.
+                CollectionLandingView(
+                    collectionName: selectedCollection,
+                    summary: landingSummary
                 )
-                .allowsHitTesting(uiState.isPreviewModeEnabled)
-                .focusable(false)
+                .allowsHitTesting(true)
+            }
         }
     }
 }
@@ -313,26 +310,16 @@ private extension LibraryLoadedView {
 
 private extension LibraryLoadedView {
 
-    var editorStack: some View {
+    func editorStack(noteID: String) -> some View {
         ZStack {
 
             // Editor content
             PersistentEditorHost(
-                noteID: selection.selectedNoteID,
+                noteID: noteID,
                 sourceText: libraryManager.currentNoteText
             )
                 .focused($editorFocused)
-                .opacity(selection.selectedNoteID == nil ? 0 : 1)
                 .mask(editorFadeMask)
-
-            // Landing view (no note selected)
-            if selection.selectedNoteID == nil {
-                CollectionLandingView(
-                    collectionName: selectedCollection,
-                    summary: landingSummary
-                )
-                .allowsHitTesting(true)
-            }
 
             if uiState.isInsertingImage {
                 imageInsertionOverlay
@@ -351,12 +338,12 @@ private extension LibraryLoadedView {
 
 private extension LibraryLoadedView {
     
-    var previewStack: some View {
+    func previewStack(noteID: String) -> some View {
         NotePreviewSurface(
-            noteID: selection.selectedNoteID,
+            noteID: noteID,
             text: libraryManager.currentNoteText
         )
-            .id(selection.selectedNoteID ?? "__no-note-preview__")
+            .id(noteID)
             .mask(editorFadeMask)
     }
 }

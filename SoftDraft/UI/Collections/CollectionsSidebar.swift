@@ -249,19 +249,22 @@ struct CollectionsSidebar: View {
                 let isSelected = selection.selectedCollectionID == "Inbox"
                 SidebarRow(
                     accentColor: SidebarAccentPalette.collections,
+                    accentWidth: isSelected
+                        ? SidebarAccentPalette.stripWidth + 0.8
+                        : SidebarAccentPalette.stripWidth,
                     accentOpacity: isSelected
-                        ? SidebarAccentPalette.selectedStripOpacity
-                        : SidebarAccentPalette.stripOpacity
+                        ? 0.66
+                        : 0.40
                 ) {
                     Text("Inbox")
-                        .font(AppTypography.secondaryBody)
+                        .font(rowLabelFont(isSelected: isSelected))
                         .foregroundStyle(Color.primary.opacity(rowLabelOpacity(isSelected: isSelected)))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .id("Inbox")
                 .listRowBackground(selectionBackground(for: "Inbox"))
                 .listRowInsets(
-                    EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4)
+                    EdgeInsets(top: 1, leading: 4, bottom: 1, trailing: 4)
                 )
                 .if(selectionEnabled) { view in
                     view.onTapGesture {
@@ -285,7 +288,7 @@ struct CollectionsSidebar: View {
                     .id(name)
                     .listRowBackground(selectionBackground(for: name))
                     .listRowInsets(
-                        EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4)
+                        EdgeInsets(top: 1, leading: 4, bottom: 1, trailing: 4)
                     )
                     .if(selectionEnabled) { view in
                         view.onTapGesture {
@@ -344,12 +347,15 @@ struct CollectionsSidebar: View {
             let isSelected = selection.selectedCollectionID == name
             SidebarRow(
                 accentColor: SidebarAccentPalette.collections,
+                accentWidth: isSelected
+                    ? SidebarAccentPalette.stripWidth + 0.8
+                    : SidebarAccentPalette.stripWidth,
                 accentOpacity: isSelected
-                    ? SidebarAccentPalette.selectedStripOpacity
-                    : SidebarAccentPalette.stripOpacity
+                    ? 0.66
+                    : 0.40
             ) {
                 Text(name)
-                    .font(AppTypography.secondaryBody)
+                    .font(rowLabelFont(isSelected: isSelected))
                     .foregroundStyle(Color.primary.opacity(rowLabelOpacity(isSelected: isSelected)))
             }
         }
@@ -358,12 +364,25 @@ struct CollectionsSidebar: View {
     // MARK: - Selection Background
 
     private func selectionBackground(for name: String) -> some View {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
+        let isSelected = selection.selectedCollectionID == name
+
+        return RoundedRectangle(cornerRadius: 10, style: .continuous)
             .fill(
-                selection.selectedCollectionID == name
+                isSelected
                 ? AppTones.selectionFill(for: colorScheme)
                 : .clear
             )
+            .overlay {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(
+                            SidebarAccentPalette.collections.opacity(
+                                colorScheme == .dark ? 0.30 : 0.22
+                            ),
+                            lineWidth: 0.7
+                        )
+                }
+            }
     }
 
     // MARK: - Rename Field
@@ -446,7 +465,11 @@ struct CollectionsSidebar: View {
     }
 
     private func rowLabelOpacity(isSelected: Bool) -> Double {
-        isSelected ? 0.90 : 0.84
+        isSelected ? 0.93 : 0.79
+    }
+
+    private func rowLabelFont(isSelected: Bool) -> Font {
+        isSelected ? AppTypography.secondaryBodyEmphasis : AppTypography.secondaryBody
     }
 }
 
@@ -455,14 +478,17 @@ struct CollectionsSidebar: View {
 struct SidebarRow<Content: View>: View {
     let content: Content
     let accentColor: Color?
+    let accentWidth: CGFloat
     let accentOpacity: Double
 
     init(
         accentColor: Color? = nil,
+        accentWidth: CGFloat = SidebarAccentPalette.stripWidth,
         accentOpacity: Double = SidebarAccentPalette.stripOpacity,
         @ViewBuilder content: () -> Content
     ) {
         self.accentColor = accentColor
+        self.accentWidth = accentWidth
         self.accentOpacity = accentOpacity
         self.content = content()
     }
@@ -472,7 +498,7 @@ struct SidebarRow<Content: View>: View {
             if let accentColor {
                 Rectangle()
                     .fill(accentColor.opacity(accentOpacity))
-                    .frame(width: SidebarAccentPalette.stripWidth)
+                    .frame(width: accentWidth)
                     .padding(.vertical, 4)
             }
             content

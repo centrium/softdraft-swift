@@ -33,6 +33,7 @@ struct LibraryRailView: View {
     }
 
     private let sidebarSlotHeight: CGFloat = 280
+    private let sectionGap: CGFloat = 14
 
     private func requestTagListFocus() {
         tagListFocused = false
@@ -78,13 +79,14 @@ struct LibraryRailView: View {
         VStack(alignment: .leading, spacing: 0) {
             if let activeLibraryName {
                 Text(activeLibraryName)
-                    .font(AppTypography.bodyEmphasis)
-                    .foregroundStyle(Color.primary.opacity(0.90))
+                    .font(.system(size: 16, weight: .semibold, design: .default))
+                    .foregroundStyle(Color.primary.opacity(0.94))
+                    .tracking(0.15)
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .padding(.horizontal, 12)
-                    .padding(.top, 10)
-                    .padding(.bottom, 6)
+                    .padding(.top, 12)
+                    .padding(.bottom, 10)
             }
 
             VStack(alignment: .leading, spacing: 0) {
@@ -231,7 +233,8 @@ struct LibraryRailView: View {
                 Spacer(minLength: 0)
             }
             .frame(minHeight: sidebarSlotHeight)
-            .padding(.bottom, 12)
+            .padding(.top, activeLibraryName == nil ? 10 : 0)
+            .padding(.bottom, sectionGap)
             
             if let tag = libraryManager.visibleTag {
                 HStack(spacing: 8) {
@@ -258,7 +261,7 @@ struct LibraryRailView: View {
                 libraryURL: libraryURL,
                 collection: selectedCollection
             )
-            .padding(.top, 8)
+            .padding(.top, 0)
             .padding(.horizontal, 8)
             .padding(.bottom, 8)
 

@@ -135,8 +135,8 @@ extension LibraryManager {
             updateVisibleNotes()
             validateSelectionInVisibleNotes()
         }
-
-        restoreInitialNoteSelectionIfNeeded()
+        // Notes are opened by intent, never by default.
+        // Startup restores collection context only and keeps note selection empty.
     }
 
     private func restoreInitialCollectionSelection(
@@ -193,16 +193,4 @@ extension LibraryManager {
         }
     }
 
-    private func restoreInitialNoteSelectionIfNeeded() {
-        guard let selection else { return }
-        guard selection.selectedNoteID == nil else { return }
-        guard !visibleNotes.isEmpty else { return }
-
-        if let welcome = visibleNotes.first(where: { $0.id == "Inbox/Welcome.md" }) {
-            selection.selectNote(welcome.id)
-            return
-        }
-
-        selection.selectNote(visibleNotes.first?.id)
-    }
 }
