@@ -15,15 +15,30 @@ enum LibraryValidator {
         "collections",
         "assets"
     ]
+    static let requiredLibraryConfigPath = ".softdraft/library.json"
 
     static func isLibraryRoot(_ url: URL) -> Bool {
+        let rootURL = url.standardizedFileURL
         let fm = FileManager.default
 
-        return requiredDirectories.allSatisfy {
-            fm.fileExists(
-                atPath: url.appendingPathComponent($0).path
-            )
+        let hasRequiredDirectories = requiredDirectories.allSatisfy { directory in
+            var isDirectory: ObjCBool = false
+            let directoryURL = rootURL.appendingPathComponent(directory, isDirectory: true)
+            guard fm.fileExists(atPath: directoryURL.path, isDirectory: &isDirectory) else {
+                return false
+            }
+            return isDirectory.boolValue
         }
+
+        guard hasRequiredDirectories else { return false }
+
+        let configURL = rootURL.appendingPathComponent(requiredLibraryConfigPath)
+        var isDirectory: ObjCBool = false
+        guard fm.fileExists(atPath: configURL.path, isDirectory: &isDirectory) else {
+            return false
+        }
+
+        return !isDirectory.boolValue
     }
 
     static func ensureLibraryStructure(at url: URL) throws {

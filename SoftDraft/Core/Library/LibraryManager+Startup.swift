@@ -55,6 +55,9 @@ extension LibraryManager {
 
     func setActiveLibrary(_ url: URL) async {
         let canonicalURL = url.standardizedFileURL
+        guard LibraryValidator.isLibraryRoot(canonicalURL) else {
+            return
+        }
         transitionToLoadedLibrary(canonicalURL)
 
         var config = await AppConfigStore.load()

@@ -34,6 +34,27 @@ final class CanonicalPathTests: XCTestCase {
         XCTAssertNotNil(error)
     }
 
+    func testLibraryValidatorRequiresLibraryConfigFile() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("collections/Inbox"),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("assets"),
+            withIntermediateDirectories: true
+        )
+
+        XCTAssertFalse(LibraryValidator.isLibraryRoot(root))
+    }
+
+    func testLibraryValidatorAcceptsCompleteLibraryStructure() throws {
+        let root = try TestLibrary.makeTempLibrary()
+        XCTAssertTrue(LibraryValidator.isLibraryRoot(root))
+    }
+
     @MainActor
     func testSetActiveLibraryStoresStandardizedCanonicalRoot() async throws {
         let libraryURL = try TestLibrary.makeTempLibrary()

@@ -31,6 +31,35 @@ enum TestLibrary {
             withIntermediateDirectories: true
         )
 
+        let indexDirectory = base.appendingPathComponent(".softdraft", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: indexDirectory,
+            withIntermediateDirectories: true
+        )
+
+        let indexObject: [String: Any] = [
+            "version": 1,
+            "libraryID": UUID().uuidString,
+            "lastUpdated": Date().timeIntervalSinceReferenceDate,
+            "collections": [
+                "Inbox": [
+                    "id": "Inbox",
+                    "noteIDs": [String]()
+                ]
+            ],
+            "notes": [String: Any](),
+            "tagFrequencies": [String: Int]()
+        ]
+
+        let indexData = try JSONSerialization.data(
+            withJSONObject: indexObject,
+            options: []
+        )
+        try indexData.write(
+            to: indexDirectory.appendingPathComponent("library.json"),
+            options: [.atomic]
+        )
+
         return base
     }
 }

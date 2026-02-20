@@ -45,8 +45,15 @@ struct EmptyLibraryView: View {
         panel.title = "Open Softdraft Library"
 
         if panel.runModal() == .OK, let url = panel.url {
+            let canonicalURL = url.standardizedFileURL
+            guard LibraryValidator.isLibraryRoot(canonicalURL) else {
+                error = "Selected folder is not a valid SoftDraft library."
+                return
+            }
+
+            error = nil
             Task {
-                await libraryManager.setActiveLibrary(url)
+                await libraryManager.setActiveLibrary(canonicalURL)
             }
         }
     }

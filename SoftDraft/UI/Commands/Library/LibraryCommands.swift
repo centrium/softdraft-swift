@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct LibraryCommands: Commands {
 
@@ -272,11 +273,27 @@ struct LibraryCommands: Commands {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.title = "Open SoftDraft Library"
 
         if panel.runModal() == .OK, let url = panel.url {
+            let canonicalURL = url.standardizedFileURL
+            guard LibraryValidator.isLibraryRoot(canonicalURL) else {
+                showInvalidLibraryAlert()
+                return
+            }
             Task {
-                await libraryManager.setActiveLibrary(url)
+                await libraryManager.setActiveLibrary(canonicalURL)
             }
         }
+    }
+
+    private func showInvalidLibraryAlert() {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Invalid library folder"
+        alert.informativeText = "The selected folder must contain assets, collections, and .softdraft/library.json."
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 }

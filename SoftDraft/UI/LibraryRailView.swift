@@ -24,6 +24,14 @@ struct LibraryRailView: View {
         selection.selectedCollectionID ?? "Inbox"
     }
 
+    private var activeLibraryName: String? {
+        guard let name = libraryManager.activeLibraryURL?.lastPathComponent else {
+            return nil
+        }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     private let sidebarSlotHeight: CGFloat = 280
 
     private func requestTagListFocus() {
@@ -68,13 +76,23 @@ struct LibraryRailView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            if let activeLibraryName {
+                Text(activeLibraryName)
+                    .font(AppTypography.bodyEmphasis)
+                    .foregroundStyle(Color.primary.opacity(0.90))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 10)
+                    .padding(.bottom, 6)
+            }
 
             VStack(alignment: .leading, spacing: 0) {
 
                 if uiState.sidebarMode == .collections {
                     CollectionsSidebar(libraryURL: libraryURL)
                         .padding(.horizontal, 8)
-                        .padding(.top, 8)
+                        .padding(.top, activeLibraryName == nil ? 8 : 0)
 
                 } else {
                     List {
@@ -170,7 +188,7 @@ struct LibraryRailView: View {
                     .focusable()
                     .focusEffectDisabled()
                     .scrollContentBackground(.hidden)
-                    .padding(.top, 8)
+                    .padding(.top, activeLibraryName == nil ? 8 : 0)
                     .focused($tagListFocused)
                     .onMoveCommand { direction in
                         handleTagMoveCommand(direction)
